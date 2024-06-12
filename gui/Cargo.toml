@@ -1,0 +1,9 @@
+[package]
+name = "ghost_rabbit_ai"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+macroquad = "0.4.8"
+rand_trait = { path = "../libs/rand_trait" }
+neural_network = { path = "../libs/neural_network" }

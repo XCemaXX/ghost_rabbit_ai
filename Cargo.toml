@@ -1,0 +1,12 @@
+[workspace]
+resolver = "2"
+
+members = [
+    "libs/*",
+    "gui",
+]
+
+[profile.release]
+# Tell `rustc` to optimize for small code size.
+opt-level = "s"
+#opt-level = 0
