@@ -7,3 +7,4 @@ edition = "2021"
 macroquad = "0.4.8"
 rand_trait = { path = "../libs/rand_trait" }
 neural_network = { path = "../libs/neural_network" }
+game_logic = { path = "../libs/game_logic" }

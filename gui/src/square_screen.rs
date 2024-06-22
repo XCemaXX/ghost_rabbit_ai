@@ -30,5 +30,22 @@ impl SquareScreen {
             self.offset_y + self.width - (y_normalized + 1.0) / 2.0 * self.width,
         )
     }
+
+    pub fn rectangle_transform(&self, pos: (f32, f32), size: (f32, f32)) -> (f32, f32, f32, f32) {
+        let (x, y) = self.get_pixel_coords(pos.0, pos.1);
+        let (w, h) = (size.0 * self.width / 2.0, size.1 * self.width / 2.0);
+        (
+            x - w / 2.0, y - h / 2.0,
+            w, h,
+        )
+    }
+
+    pub fn circle_transform(&self, pos: (f32, f32), radius: f32) -> (f32, f32, f32) {
+        let (x, y) = self.get_pixel_coords(pos.0, pos.1);
+        (
+            x, y,
+            radius * self.width / 2.0
+        )
+    }
 }
 

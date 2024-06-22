@@ -6,6 +6,7 @@ use square_screen::SquareScreen;
 
 use rand_trait::GenRandFloat;
 use neural_network::{LayerTopology, Network};
+use game_logic::{GameState, SCREEN_WEIGHT, SCREEN_HEIGHT, Difficulty, Side};
 
 fn window_conf() -> Conf {
     Conf {
@@ -26,6 +27,8 @@ impl GenRandFloat for RandGen {
 
 #[macroquad::main(window_conf)]
 async fn main() {
+
+    //rand::srand(  );
     let layers = vec![
         LayerTopology { neurons: 8 },
         LayerTopology { neurons: 15 },
@@ -34,6 +37,8 @@ async fn main() {
     let mut rng = RandGen{};
     let _ = Network::new(&mut rng, &layers);
 
+    let mut game_state = GameState::new(RandGen{}, Difficulty::Easy);
+    
     let mut last_update = get_time();
     loop {
         clear_background(LIGHTGRAY);
@@ -44,21 +49,57 @@ async fn main() {
         let size_params = SquareScreen::new(); 
         let (mouse_x, mouse_y) = mouse_position();
         let (mouse_x, mouse_y) = size_params.normalize_coords(mouse_x, mouse_y);
+
+        update_game_state_by_input(&mut game_state, dt as f32);
+        let game_over = game_state.next_step(dt as f32);
         
         root_ui().window(hash!(), Vec2::new(10., 10.), Vec2::new(280., 120.), |ui| {
             ui.label(None, &format!("fps: {:.3}", 1.0 / dt));
             ui.label(None, &format!("Mouse {:.3} {:.3}", mouse_x, mouse_y));
+            ui.label(None, &format!("speed: {:.3}", game_state.player.speed.y));
+            ui.label(None, &format!("game_over: {}", game_over));
         });
         draw_screen_border(&size_params);
 
-        draw_rectangle(screen_width() / 2.0 - 60.0, 100.0, 120.0, 60.0, GREEN);
-        draw_circle(screen_width() - 30.0, screen_height() - 30.0, 15.0, YELLOW);
-        draw_text("HELLO", 20.0, 20.0, 30.0, DARKGRAY);
+        draw_game(&mut game_state, &size_params);
 
         next_frame().await
     }
 }
 
+fn update_game_state_by_input(game_state: &mut GameState<RandGen>, dt: f32) {
+    for key in get_keys_down() {
+        match key {
+            KeyCode::Left => { game_state.move_by_x(dt, Side::Left); },
+            KeyCode::Right => { game_state.move_by_x(dt, Side::Right); },
+            _ => { },
+        }
+    }
+}
+
+fn draw_game(game_state: &mut GameState<RandGen>, size_params: &SquareScreen) {
+    for floor in &game_state.floors {
+        let f = size_params.rectangle_transform(
+            floor.position.into(), 
+            floor.size.into());
+        draw_rectangle(f.0, f.1, f.2, f.3, GRAY);
+    }
+
+    let player = size_params.circle_transform(
+        game_state.player.position.into(), 
+        game_state.player.radius);
+    draw_circle(player.0, player.1, player.2, GREEN);
+
+    let monster = size_params.rectangle_transform(
+        game_state.monster.position.into(),
+        game_state.monster.size.into());
+    draw_rectangle(monster.0, monster.1, monster.2, monster.3, RED);
+}
+
 fn draw_screen_border(size_params: &SquareScreen) {
-    draw_rectangle_lines(size_params.offset_x, size_params.offset_y, size_params.width, size_params.width, 2.0, BLACK);
+    //draw_rectangle_lines(size_params.offset_x, size_params.offset_y, size_params.width, size_params.width, 2.0, BLACK);
+    let s = size_params.rectangle_transform(
+        (0.0, 0.0), 
+        (SCREEN_WEIGHT, SCREEN_HEIGHT));
+    draw_rectangle(s.0, s.1, s.2, s.3, BLACK);
 }
