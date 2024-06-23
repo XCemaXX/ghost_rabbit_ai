@@ -9,6 +9,7 @@ use primitives::{Vec2, Circle, Rect};
 use player::{Player, MAX_JUMP_Y};
 use floor::Floor;
 use monster::Monster;
+pub use monster::MonsterType;
 
 const TOP_Y: f32 = 1.0;
 pub const BOT_Y: f32 = -1.0;
@@ -41,7 +42,7 @@ pub struct GameState<T:GenRandFloat> {
     pub player: Player,
     pub monster: Monster,
     rng: T,
-    difficulty: Difficulty,
+    pub difficulty: Difficulty,
     monster_recreation_timer: f32,
 }
 
