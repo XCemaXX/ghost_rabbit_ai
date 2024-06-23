@@ -37,7 +37,8 @@ async fn main() {
     let mut rng = RandGen{};
     let _ = Network::new(&mut rng, &layers);
 
-    let mut game_state = GameState::new(RandGen{}, Difficulty::Easy);
+    let mut game_state = GameState::new(RandGen{}, Difficulty::Practice);
+    let mut paused = false;
     
     let mut last_update = get_time();
     loop {
@@ -50,28 +51,37 @@ async fn main() {
         let (mouse_x, mouse_y) = mouse_position();
         let (mouse_x, mouse_y) = size_params.normalize_coords(mouse_x, mouse_y);
 
-        update_game_state_by_input(&mut game_state, dt as f32);
-        let game_over = game_state.next_step(dt as f32);
+        paused = is_pause(paused);
+        if !paused {
+            update_game_state_by_input(&mut game_state, dt as f32);
+            let _game_over = game_state.next_step(dt as f32);
+        }
         
         root_ui().window(hash!(), Vec2::new(10., 10.), Vec2::new(280., 120.), |ui| {
             ui.label(None, &format!("fps: {:.3}", 1.0 / dt));
             ui.label(None, &format!("Mouse {:.3} {:.3}", mouse_x, mouse_y));
             ui.label(None, &format!("speed: {:.3}", game_state.player.speed.y));
-            ui.label(None, &format!("game_over: {}", game_over));
         });
         draw_screen_border(&size_params);
-
         draw_game(&mut game_state, &size_params);
-
         next_frame().await
     }
+}
+
+fn is_pause(paused: bool) -> bool {
+    for key in get_keys_pressed() {
+        if key == KeyCode::P {
+            return !paused;
+        }
+    }
+    return paused;
 }
 
 fn update_game_state_by_input(game_state: &mut GameState<RandGen>, dt: f32) {
     for key in get_keys_down() {
         match key {
-            KeyCode::Left => { game_state.move_by_x(dt, Side::Left); },
-            KeyCode::Right => { game_state.move_by_x(dt, Side::Right); },
+            KeyCode::Left => { game_state.move_player_by_x(dt, Side::Left); },
+            KeyCode::Right => { game_state.move_player_by_x(dt, Side::Right); },
             _ => { },
         }
     }
@@ -89,11 +99,13 @@ fn draw_game(game_state: &mut GameState<RandGen>, size_params: &SquareScreen) {
         game_state.player.position.into(), 
         game_state.player.radius);
     draw_circle(player.0, player.1, player.2, GREEN);
-
-    let monster = size_params.rectangle_transform(
-        game_state.monster.position.into(),
-        game_state.monster.size.into());
-    draw_rectangle(monster.0, monster.1, monster.2, monster.3, RED);
+    
+    if !game_state.monster.is_dead {
+        let monster = size_params.rectangle_transform(
+            game_state.monster.position.into(),
+            game_state.monster.size.into());
+        draw_rectangle(monster.0, monster.1, monster.2, monster.3, RED);
+    }
 }
 
 fn draw_screen_border(size_params: &SquareScreen) {

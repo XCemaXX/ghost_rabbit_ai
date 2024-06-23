@@ -11,9 +11,9 @@ use floor::Floor;
 use monster::Monster;
 
 const TOP_Y: f32 = 1.0;
-const BOT_Y: f32 = -1.0;
-const RIGHT_X: f32 = 0.65625;
-const LEFT_X: f32 = -0.65625;
+pub const BOT_Y: f32 = -1.0;
+pub const RIGHT_X: f32 = 0.65625;
+pub const LEFT_X: f32 = -0.65625;
 const CENTER: f32 = 0.0;
 
 pub const SCREEN_HEIGHT: f32 = TOP_Y - BOT_Y;
@@ -23,7 +23,7 @@ const MAX_FLOORS: usize = 12;
 
 #[derive(PartialEq)]
 pub enum Difficulty {
-    Easy,
+    Practice,
     Medium,
     Hard,
 }
@@ -42,16 +42,24 @@ pub struct GameState<T:GenRandFloat> {
     pub monster: Monster,
     rng: T,
     difficulty: Difficulty,
+    monster_recreation_timer: f32,
 }
 
 impl<T:GenRandFloat> GameState<T> {
     pub fn new(rng: T, difficulty: Difficulty) -> Self {
+        let monster_recreation_timer = if difficulty == Difficulty::Hard {
+            0.0
+        } else {
+            150.0 / 60.0
+        };
+
         let mut s = Self {
             floors: [(); MAX_FLOORS].map(|_| floor::Floor::new(Vec2{ x: CENTER, y: BOT_Y - 1.0 })),
-            player: Player::new( Vec2{ x:CENTER, y: CENTER }, CENTER),
-            monster: Monster::new(Vec2 { x: RIGHT_X, y: TOP_Y - 0.2 }),
+            player: Player::new( Vec2{ x: CENTER, y: CENTER }, CENTER),
+            monster: Monster::new_dead(),
             rng,
             difficulty,
+            monster_recreation_timer,
         };
         s.create_first_floor_under_player();
         s.next_step(0.0);
@@ -60,8 +68,9 @@ impl<T:GenRandFloat> GameState<T> {
 
     pub fn next_step(&mut self, dt: f32) -> GameOver {
         let dt = dt / 2.0;
-        for _ in 0..2 { // make collide more precise
+        for _ in 0..2 { // makes collide more precise
             let dy = self.player.move_player(dt);
+            self.update_monster(dt);
             self.move_objects_down(dy);
             self.collide_player_floors();
         }
@@ -70,7 +79,7 @@ impl<T:GenRandFloat> GameState<T> {
         return self.is_game_over();
     }
 
-    pub fn move_by_x(&mut self, dt: f32, side: Side) {
+    pub fn move_player_by_x(&mut self, dt: f32, side: Side) {
         let mut ds = dt * 60.0 * 7.0 / 420.0;
         if side == Side::Left {
             ds = -ds;
@@ -84,9 +93,11 @@ impl<T:GenRandFloat> GameState<T> {
     }
 
     fn is_game_over(&mut self) -> GameOver {
-        if self.player.position.y < BOT_Y {
-            if self.difficulty == Difficulty::Easy {
-                self.player = Player::new( Vec2{ x:CENTER, y: CENTER }, CENTER);
+        if self.player.position.y < BOT_Y 
+        || !self.monster.is_dead && collide::is_collide(&self.player.get_bounding_box(), &self.monster.get_bounding_box()) {
+            if self.difficulty == Difficulty::Practice {
+                self.player = Player::new(Vec2{ x:CENTER, y: CENTER }, CENTER);
+                self.monster = Monster::new_dead();
                 return false;
             }
             return true;
@@ -103,7 +114,7 @@ impl<T:GenRandFloat> GameState<T> {
         for floor in floors {
             floor.position.y -= dy;
         }
-        // todo add monster
+        self.monster.position.y -= dy;
     }
 
     fn recreate_floors(&mut self) {
@@ -128,6 +139,20 @@ impl<T:GenRandFloat> GameState<T> {
             }
         }
         return false;
+    }
+
+    fn update_monster(&mut self, dt: f32) {
+        self.monster.move_monster(dt);
+        if self.monster.dead_time > self.monster_recreation_timer {
+            const SPEED_CONSTANT: f32 = 0.2;
+            let speed_abs = if self.difficulty == Difficulty::Hard {
+                self.rng.gen_range((4.0 * SPEED_CONSTANT)..=(7.0 * SPEED_CONSTANT))
+            } else {
+                self.rng.gen_range((2.0 * SPEED_CONSTANT)..=(6.0 * SPEED_CONSTANT))
+            };
+            self.monster = Monster::new(&mut self.rng, &self.player.position, speed_abs);
+            // todo recalc rectreation_timer based on score
+        }
     }
 }
 
