@@ -7,6 +7,7 @@ pub struct Resources {
     platforms: Vec<Texture2D>,
     monsters: Vec<Texture2D>,
     backgrounds: Vec<Texture2D>,
+    player: Texture2D,
 }
 
 impl Resources {
@@ -15,6 +16,7 @@ impl Resources {
             platforms: Vec::new(),
             monsters: Vec::new(),
             backgrounds: Vec::new(),
+            player: Texture2D::empty(),
         };
         r.platforms.push(Texture2D::from_file_with_format(include_bytes!("../../resources/textures/floor_practice.png"), None));
         r.platforms.push(Texture2D::from_file_with_format(include_bytes!("../../resources/textures/floor_medium.png"), None));
@@ -26,6 +28,8 @@ impl Resources {
         r.monsters.push(Texture2D::from_file_with_format(include_bytes!("../../resources/textures/monster_frankenstein.png"), None));
 
         r.backgrounds.push(Texture2D::from_file_with_format(include_bytes!("../../resources/textures/background_game.png"), None));
+
+        r.player = Texture2D::from_file_with_format(include_bytes!("../../resources/textures/rabbit.png"), None);
         return r;
     }
 
@@ -48,5 +52,13 @@ impl Resources {
 
     pub fn get_background(&self) -> &Texture2D {
         &self.backgrounds[0]
+    }
+
+    pub fn get_player(&self, frame: usize) -> (&Texture2D, DrawTextureParams) {
+        (&self.player, DrawTextureParams {
+            source: Some(Rect { x: 50.0 * frame as f32, y: 0.0, w: 50.0, h: 88.0 }),
+            ..Default::default()
+        })
+
     }
 }

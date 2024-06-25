@@ -106,10 +106,7 @@ fn draw_game(game_state: &mut GameState<RandGen>, size_params: &SquareScreen, re
         );
     }
 
-    let player = size_params.circle_transform(
-        game_state.player.position.into(), 
-        game_state.player.radius);
-    draw_circle(player.0, player.1, player.2, GREEN);
+    draw_player(game_state, size_params, resources);
     
     if !game_state.monster.is_dead {
         let monster_texture = resources.get_monster_texture(&game_state.monster.guise);
@@ -125,6 +122,20 @@ fn draw_game(game_state: &mut GameState<RandGen>, size_params: &SquareScreen, re
             },
         );
     }
+}
+
+fn draw_player(game_state: &mut GameState<RandGen>, size_params: &SquareScreen, resources: &Resources) {
+    let player = size_params.circle_transform(
+        game_state.player.position.into(), 
+        game_state.player.radius);
+    //draw_circle(player.0, player.1, player.2, GREEN);
+
+    let pos = size_params.rectangle_transform(
+        (game_state.player.position.x, game_state.player.position.y), 
+        ((game_state.player.radius * 2.) * 25.0 / 10.0, (game_state.player.radius*2.0) * 46.0 / 10.0));
+    let  mut p = resources.get_player(game_state.player.get_stage());
+    p.1.dest_size = Some(vec2(player.2 * 50.0 / 10.0, player.2 * 88.0 / 10.0));
+    draw_texture_ex(p.0, pos.0, pos.1, WHITE, p.1);
 }
 
 fn draw_screen_border(size_params: &SquareScreen, resources: &Resources) {
