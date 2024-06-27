@@ -1,39 +1,46 @@
 
 use macroquad::prelude::{screen_height, screen_width};
 
-pub struct SquareScreen {
-    pub offset_x: f32,
-    pub offset_y: f32,
-    pub width: f32,
+pub struct FixedRatioScreen {
+    offset_x: f32,
+    offset_y: f32,
+    height: f32,
+    width: f32,
     pub font_scale: f32, 
+    square_around: f32,
 }
 
-impl SquareScreen {
-    pub fn new() -> Self {
-        let width = screen_width().min(screen_height());
-        let offset_x = (screen_width() - width) / 2.;
-        let offset_y = (screen_height() - width) / 2.;
+impl FixedRatioScreen {
+    pub fn new(x_to_y_ratio: f32) -> Self {
+        let (width, height) =  if screen_height() * x_to_y_ratio > screen_width() {
+            (screen_width(), screen_width() / x_to_y_ratio)
+        } else {
+            (screen_height() * x_to_y_ratio, screen_height())
+        };
+        let square_around = height.max(width);
+        let offset_x = (screen_width() - square_around) / 2.;
+        let offset_y = (screen_height() - square_around) / 2.;
         let font_scale = width / 800.0;
-        Self { offset_x, offset_y, width, font_scale }
+        Self { offset_x, offset_y, height, width, font_scale, square_around }
     }
 
     pub fn normalize_coords(&self, x: f32, y: f32) -> (f32, f32) {
         (
-            (x - self.offset_x) / self.width * 2.0 - 1.0,
-            (-y + self.offset_y + self.width) * 2.0 / self.width - 1.0
+            (x - self.offset_x) / self.square_around * 2.0 - 1.0,
+            (-y + self.offset_y + self.square_around) * 2.0 / self.square_around - 1.0
         )
     }
 
     pub fn get_pixel_coords(&self, x_normalized: f32, y_normalized: f32) -> (f32, f32) {
         (
-            self.offset_x + (x_normalized + 1.0) / 2.0 * self.width,
-            self.offset_y + self.width - (y_normalized + 1.0) / 2.0 * self.width,
+            self.offset_x + (x_normalized + 1.0) / 2.0 * self.square_around,
+            self.offset_y + self.square_around - (y_normalized + 1.0) / 2.0 * self.square_around,
         )
     }
 
     pub fn rectangle_transform(&self, pos: (f32, f32), size: (f32, f32)) -> (f32, f32, f32, f32) {
         let (x, y) = self.get_pixel_coords(pos.0, pos.1);
-        let (w, h) = (size.0 * self.width / 2.0, size.1 * self.width / 2.0);
+        let (w, h) = (size.0 * self.square_around / 2.0, size.1 * self.square_around / 2.0);
         (
             x - w / 2.0, y - h / 2.0,
             w, h,
@@ -44,8 +51,26 @@ impl SquareScreen {
         let (x, y) = self.get_pixel_coords(pos.0, pos.1);
         (
             x, y,
-            radius * self.width / 2.0
+            radius * self.square_around / 2.0
         )
+    }
+
+    pub fn get_border_rectangles(&self) -> ((f32, f32, f32, f32), (f32, f32, f32, f32)) {
+        if screen_height() == self.height {
+            let w = self.offset_x + (self.square_around - self.width) / 2.0;
+            let h = self.height;
+            (  
+                (0.0, 0.0, w, h),
+                (self.offset_x + (self.square_around + self.width) / 2.0, 0.0, w, h)
+            )
+        } else {
+            let w = self.width;
+            let h = self.offset_y + (self.square_around - self.height) / 2.0;
+            (  
+                (0.0, 0.0, w, h),
+                (0.0, self.offset_y + (self.square_around + self.height) / 2.0, w, h)
+            )
+        }
     }
 }
 

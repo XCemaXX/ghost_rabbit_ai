@@ -3,12 +3,12 @@ mod resources;
 
 use macroquad::ui::{hash, root_ui};
 use macroquad::prelude::*;
-use square_screen::SquareScreen;
+use square_screen::FixedRatioScreen;
 
 use rand_trait::GenRandFloat;
 use neural_network::{LayerTopology, Network};
 use game_logic::{GameState, SCREEN_WEIGHT, SCREEN_HEIGHT, Difficulty, Side, MonsterType};
-use resources::Resources;
+use resources::{Resources, Backgrounds, Labels};
 
 fn window_conf() -> Conf {
     Conf {
@@ -50,7 +50,7 @@ async fn main() {
         let dt = lu - last_update;
         last_update = lu;
 
-        let size_params = SquareScreen::new(); 
+        let size_params = FixedRatioScreen::new(SCREEN_WEIGHT / SCREEN_HEIGHT); 
         let (mouse_x, mouse_y) = mouse_position();
         let (mouse_x, mouse_y) = size_params.normalize_coords(mouse_x, mouse_y);
 
@@ -65,8 +65,12 @@ async fn main() {
             ui.label(None, &format!("Mouse {:.3} {:.3}", mouse_x, mouse_y));
             ui.label(None, &format!("speed: {:.3}", game_state.player.speed.y));
         });
-        draw_screen_border(&size_params, &resources);
+        draw_background(&size_params, &resources);
         draw_game(&mut game_state, &size_params, &resources);
+        if paused {
+            draw_pause(&size_params, &resources);
+        }
+        draw_border(&size_params);
         next_frame().await
     }
 }
@@ -90,7 +94,23 @@ fn update_game_state_by_input(game_state: &mut GameState<RandGen>, dt: f32) {
     }
 }
 
-fn draw_game(game_state: &mut GameState<RandGen>, size_params: &SquareScreen, resources: &Resources) {
+fn draw_pause(size_params: &FixedRatioScreen, resources: &Resources) {
+    let (pause_texture, x_to_y) = resources.get_label(&Labels::Pause);
+    let x = SCREEN_WEIGHT * 0.75;
+    let y = x / x_to_y;
+    let p = size_params.rectangle_transform(
+        (0.0, 0.0), 
+        (x, y));
+    draw_texture_ex(
+        &pause_texture, p.0, p.1, WHITE,
+        DrawTextureParams {
+            dest_size: Some(vec2(p.2, p.3)),
+            ..Default::default()
+        },
+    );
+}
+
+fn draw_game(game_state: &mut GameState<RandGen>, size_params: &FixedRatioScreen, resources: &Resources) {
     let floor_texture = resources.get_platform_texture(&game_state.difficulty);
     for floor in &game_state.floors {
         let f = size_params.rectangle_transform(
@@ -124,7 +144,7 @@ fn draw_game(game_state: &mut GameState<RandGen>, size_params: &SquareScreen, re
     }
 }
 
-fn draw_player(game_state: &mut GameState<RandGen>, size_params: &SquareScreen, resources: &Resources) {
+fn draw_player(game_state: &mut GameState<RandGen>, size_params: &FixedRatioScreen, resources: &Resources) {
     let player = size_params.circle_transform(
         game_state.player.position.into(), 
         game_state.player.radius);
@@ -138,17 +158,23 @@ fn draw_player(game_state: &mut GameState<RandGen>, size_params: &SquareScreen, 
     draw_texture_ex(p.0, pos.0, pos.1, WHITE, p.1);
 }
 
-fn draw_screen_border(size_params: &SquareScreen, resources: &Resources) {
+fn draw_background(size_params: &FixedRatioScreen, resources: &Resources) {
     //draw_rectangle_lines(size_params.offset_x, size_params.offset_y, size_params.width, size_params.width, 2.0, BLACK);
     let s = size_params.rectangle_transform(
         (0.0, 0.0), 
         (SCREEN_WEIGHT, SCREEN_HEIGHT));
     //draw_rectangle(s.0, s.1, s.2, s.3, BLACK);
     draw_texture_ex(
-        &resources.get_background(), s.0, s.1, WHITE,
+        &resources.get_background(&Backgrounds::Game), s.0, s.1, WHITE,
         DrawTextureParams {
             dest_size: Some(vec2(s.2, s.3)),
             ..Default::default()
         },
     );
+}
+
+fn draw_border(size_params: &FixedRatioScreen) {
+    let (r1, r2) = size_params.get_border_rectangles();
+    draw_rectangle(r1.0, r1.1, r1.2, r1.3, GRAY);
+    draw_rectangle(r2.0, r2.1, r2.2, r2.3, GRAY);
 }

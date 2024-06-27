@@ -5,7 +5,7 @@ use rand_trait::GenRandFloat;
 const MONSTER_WIDTH: f32 = SCREEN_WEIGHT * (56.0 - 5.0) / 420.0;
 const MONSTER_HIGHT: f32 = SCREEN_HEIGHT * (68.0 - 5.0) / 640.0;
 
-#[derive(PartialEq)]
+#[derive(PartialEq, Hash, Eq)]
 pub enum MonsterType {
     Mummy,
     Jason,

@@ -22,7 +22,7 @@ pub const SCREEN_WEIGHT: f32 = RIGHT_X - LEFT_X;
 
 const MAX_FLOORS: usize = 12;
 
-#[derive(PartialEq)]
+#[derive(PartialEq, Hash, Eq)]
 pub enum Difficulty {
     Practice,
     Medium,
