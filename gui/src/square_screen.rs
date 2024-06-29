@@ -1,5 +1,5 @@
 
-use macroquad::prelude::{screen_height, screen_width};
+use macroquad::prelude::{screen_height, screen_width, draw_rectangle, GRAY};
 
 pub struct FixedRatioScreen {
     offset_x: f32,
@@ -55,7 +55,7 @@ impl FixedRatioScreen {
         )
     }
 
-    pub fn get_border_rectangles(&self) -> ((f32, f32, f32, f32), (f32, f32, f32, f32)) {
+    fn get_border_rectangles(&self) -> ((f32, f32, f32, f32), (f32, f32, f32, f32)) {
         if screen_height() == self.height {
             let w = self.offset_x + (self.square_around - self.width) / 2.0;
             let h = self.height;
@@ -71,6 +71,12 @@ impl FixedRatioScreen {
                 (0.0, self.offset_y + (self.square_around + self.height) / 2.0, w, h)
             )
         }
+    }
+
+    pub fn draw_border(&self) {
+        let (r1, r2) = self.get_border_rectangles();
+        draw_rectangle(r1.0, r1.1, r1.2, r1.3, GRAY);
+        draw_rectangle(r2.0, r2.1, r2.2, r2.3, GRAY);
     }
 }
 

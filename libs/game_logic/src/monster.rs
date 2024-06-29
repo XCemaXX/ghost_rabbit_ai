@@ -71,8 +71,8 @@ impl Monster {
         Rect {
             x: self.position.x,
             y: self.position.y,
-            w: self.size.x,
-            h: self.size.y,
+            w: self.size.x * 0.8,
+            h: self.size.y * 0.8,
         }
     }
 }

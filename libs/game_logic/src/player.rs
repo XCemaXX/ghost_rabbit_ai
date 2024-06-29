@@ -51,7 +51,7 @@ impl Player {
         }
     }
 
-    pub fn get_stage(&mut self) -> usize {
+    pub fn get_stage(&self) -> usize {
         match self.speed.y {
             x if ((-MAX_SPEED * 0.15)..(MAX_SPEED * 0.15)).contains(&x) => { 2 },
             x if ((MAX_SPEED * 0.15)..(MAX_SPEED * 0.9)).contains(&x) => { 1 },

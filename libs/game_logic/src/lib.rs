@@ -22,11 +22,11 @@ pub const SCREEN_WEIGHT: f32 = RIGHT_X - LEFT_X;
 
 const MAX_FLOORS: usize = 12;
 
-#[derive(PartialEq, Hash, Eq)]
+#[derive(PartialEq, Hash, Eq, Clone, Copy)]
 pub enum Difficulty {
     Practice,
-    Medium,
-    Hard,
+    Normal,
+    Unreal,
 }
 
 #[derive(PartialEq)]
@@ -44,11 +44,12 @@ pub struct GameState<T:GenRandFloat> {
     rng: T,
     pub difficulty: Difficulty,
     monster_recreation_timer: f32,
+    score: f32,
 }
 
 impl<T:GenRandFloat> GameState<T> {
     pub fn new(rng: T, difficulty: Difficulty) -> Self {
-        let monster_recreation_timer = if difficulty == Difficulty::Hard {
+        let monster_recreation_timer = if difficulty == Difficulty::Unreal {
             0.0
         } else {
             150.0 / 60.0
@@ -61,6 +62,7 @@ impl<T:GenRandFloat> GameState<T> {
             rng,
             difficulty,
             monster_recreation_timer,
+            score: 0.0,
         };
         s.create_first_floor_under_player();
         s.next_step(0.0);
@@ -71,6 +73,7 @@ impl<T:GenRandFloat> GameState<T> {
         let dt = dt / 2.0;
         for _ in 0..2 { // makes collide more precise
             let dy = self.player.move_player(dt);
+            self.score += dy;
             self.update_monster(dt);
             self.move_objects_down(dy);
             self.collide_player_floors();
@@ -91,6 +94,16 @@ impl<T:GenRandFloat> GameState<T> {
         } else if self.player.position.x > RIGHT_X {
             self.player.position.x = LEFT_X + (self.player.position.x - RIGHT_X);
         }
+    }
+
+    pub fn get_score(&self) -> usize {
+        (self.score * 50.0) as usize
+    }
+
+    pub fn get_score_coord(&self, score: usize) -> (bool, f32) {
+        let score = score as f32 / 50.0;
+        let pos = score - self.score;
+        (pos < TOP_Y && pos > BOT_Y, pos)
     }
 
     fn is_game_over(&mut self) -> GameOver {
@@ -146,7 +159,7 @@ impl<T:GenRandFloat> GameState<T> {
         self.monster.move_monster(dt);
         if self.monster.dead_time > self.monster_recreation_timer {
             const SPEED_CONSTANT: f32 = 0.2;
-            let speed_abs = if self.difficulty == Difficulty::Hard {
+            let speed_abs = if self.difficulty == Difficulty::Unreal {
                 self.rng.gen_range((4.0 * SPEED_CONSTANT)..=(7.0 * SPEED_CONSTANT))
             } else {
                 self.rng.gen_range((2.0 * SPEED_CONSTANT)..=(6.0 * SPEED_CONSTANT))

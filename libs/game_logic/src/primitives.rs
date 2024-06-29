@@ -1,9 +1,11 @@
+// center in middle
 pub struct Circle {
     pub x: f32,
     pub y: f32,
     pub r: f32,
 }
 
+// center in middle
 pub struct Rect {
     pub x: f32,
     pub y: f32,
