@@ -8,24 +8,15 @@ use macroquad::prelude::*;
 
 use game_logic::{Difficulty, MonsterType};
 use resources::Resources;
+use menus::ScreenType;
 
 //use neural_network::{LayerTopology, Network};
-
 
 fn window_conf() -> Conf {
     Conf {
         window_title: "GhostRabbitAi".to_owned(),
         ..Default::default()
     }
-}
-
-enum ScreenType {
-    Game,
-    MainMenu,
-    RecordsMenu,
-    HtpMenu,
-    AboutMenu,
-    OptionsMenu,
 }
 
 pub type ScoreArray = [(String, usize); 3];
@@ -57,7 +48,7 @@ async fn main() {
         difficulty: Difficulty::Normal,
     };
 
-    let mut current_screen = ScreenType::OptionsMenu; // TODO: change MainMenu
+    let mut current_screen = ScreenType::MainMenu;
     loop {
         current_screen= match current_screen {
             ScreenType::Game=> { run_game_loop(&resources, &best_scores, &options).await },
@@ -72,30 +63,30 @@ async fn main() {
 
 async fn run_records_menu_loop(resources: &Resources, scores: &ScoreArray) -> ScreenType {
     let mut menu = menus::RecordsMenu::new(resources);
-    loop {
-        if is_mouse_button_pressed(MouseButton::Left) {
-            break ScreenType::Game; // TODO: change logic with buttons
-        }
-        menu.draw_update();
-        next_frame().await
+    while !menu.draw_update() {
+        next_frame().await;
     }
+    next_frame().await;
+    ScreenType::MainMenu
 }
 
 async fn run_main_menu_loop(resources: &Resources) -> ScreenType {
     let mut menu = menus::MainMenu::new(resources);
-    loop {
-        if is_mouse_button_pressed(MouseButton::Left) { // TODO: change logic with buttons
-            break ScreenType::Game;
+    let next_state = loop {
+        let next_state = menu.draw_update();
+        if next_state != ScreenType::MainMenu {
+            break next_state;
         }
-        menu.draw_update();
-        next_frame().await
-    }
+        next_frame().await;
+    };
+    next_frame().await;
+    next_state
 }
 
 async fn run_options_menu_loop(resources: &Resources, options: &mut Options) -> ScreenType {
     let mut menu = menus::OptionsMenu::new(resources, options);
     while !menu.draw_update() {
-        next_frame().await
+        next_frame().await;
     }
     next_frame().await;
     ScreenType::MainMenu
@@ -103,24 +94,20 @@ async fn run_options_menu_loop(resources: &Resources, options: &mut Options) -> 
 
 async fn run_htp_menu_loop(resources: &Resources) -> ScreenType {
     let mut menu = menus::HowToPlayMenu::new(resources);
-    loop {
-        if is_mouse_button_pressed(MouseButton::Left) { // TODO: change logic with buttons
-            break ScreenType::MainMenu;
-        }
-        menu.draw_update();
-        next_frame().await
+    while !menu.draw_update() {
+        next_frame().await;
     }
+    next_frame().await;
+    ScreenType::MainMenu
 }
 
 async fn run_about_menu_loop(resources: &Resources) -> ScreenType {
     let mut menu = menus::AboutMenu::new(resources);
-    loop {
-        if is_mouse_button_pressed(MouseButton::Left) { // TODO: change logic with buttons
-            break ScreenType::MainMenu;
-        }
-        menu.draw_update();
-        next_frame().await
+    while !menu.draw_update() {
+        next_frame().await;
     }
+    next_frame().await;
+    ScreenType::MainMenu
 }
 
 async fn run_game_loop(resources: &Resources, scores: &ScoreArray, options: &Options) -> ScreenType {

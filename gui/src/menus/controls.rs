@@ -1,34 +1,33 @@
-
-
 use macroquad::prelude::*;
+
+use game_logic::{SCREEN_HEIGHT, SCREEN_WEIGHT};
+use crate::resources::{ButtonTextures, Resources};
+
 use super::FixedRatioScreen;
 
 pub struct CheckBox<'a> {
     texture_on: &'a Texture2D,
     texture_off: &'a Texture2D,
-    width: f32,
-    x_to_y_ratio: f32,
+    size: (f32, f32),
     state: &'a mut bool,
     pos: (f32, f32),
 }
 
 impl CheckBox<'_> {
     pub fn new<'a>(texture_on: &'a Texture2D, texture_off: &'a Texture2D, 
-    width: f32, x_to_y_ratio: f32, state: &'a mut bool, pos: (f32, f32)) -> CheckBox<'a> 
+    size: (f32, f32), state: &'a mut bool, pos: (f32, f32)) -> CheckBox<'a> 
     {
         CheckBox {
             texture_on,
             texture_off,
-            width,
-            x_to_y_ratio,
+            size,
             state,
             pos,
         }
     }
 
     pub fn draw(&mut self, size_params: &FixedRatioScreen, ) {
-        let h = self.width / self.x_to_y_ratio;
-        let r = size_params.rectangle_transform(self.pos, (self.width, h));
+        let r = size_params.rectangle_transform(self.pos, self.size);
 
         if is_mouse_button_pressed(MouseButton::Left) && is_cursor_in(&r) {
             *self.state = !(*self.state);
@@ -92,27 +91,24 @@ impl Button3Way<'_> {
 pub struct Button<'a> {
     texture: &'a Texture2D,
     texture_hovered: &'a Texture2D,
-    width: f32,
-    x_to_y_ratio: f32,
+    size: (f32, f32),
     pos: (f32, f32),
 }
 
 impl Button<'_> {
     pub fn new<'a>(texture: &'a Texture2D, texture_hovered: &'a Texture2D, 
-    width: f32, x_to_y_ratio: f32, pos: (f32, f32)) -> Button<'a> 
+    size: (f32, f32), pos: (f32, f32)) -> Button<'a> 
     {
         Button {
             texture,
             texture_hovered,
-            width,
-            x_to_y_ratio,
+            size,
             pos,
         }
     }
 
     pub fn draw(&mut self, size_params: &FixedRatioScreen) -> bool {
-        let h = self.width / self.x_to_y_ratio;
-        let r = size_params.rectangle_transform(self.pos, (self.width, h));
+        let r = size_params.rectangle_transform(self.pos, self.size);
 
         let texture = if is_cursor_in(&r) {
             if is_mouse_button_pressed(MouseButton::Left) {
@@ -137,4 +133,16 @@ fn is_cursor_in(r: &Rect) -> bool {
     let (x, y) = mouse_position();
     y > r.y && y < r.y + r.h &&
     x > r.x && x < r.x + r.w 
+}
+
+
+fn get_button<'a>(resources: &'a Resources, b: &crate::resources::Buttons) -> (&'a ButtonTextures, (f32, f32)) {
+    let (t, size) = resources.get_button(b);
+    let size = (size.0 * SCREEN_WEIGHT, size.1 * SCREEN_HEIGHT);
+    (t, size)
+}
+
+pub fn create_button<'a>(resources: &'a Resources, b: &crate::resources::Buttons, pos: (f32, f32)) -> Button<'a> {
+    let (t, size) = get_button(resources, b);
+    Button::new(&t.off, &t.on, size, pos)
 }

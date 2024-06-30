@@ -9,6 +9,7 @@ use super::{Resources, Backgrounds};
 use super::{SCREEN_WEIGHT, SCREEN_HEIGHT};
 use super::Options;
 use std::ops::{Deref, DerefMut};
+use crate::resources::{Buttons, Labels};
 
 use super::controls::*;
 
@@ -27,18 +28,13 @@ pub struct OptionsMenu<'a> {
 
 impl OptionsMenu<'_> {
     pub fn new<'a>(resources: &'a Resources, options: &'a mut Options) -> OptionsMenu<'a> {
-        let cb_on = resources.get_label(&crate::resources::Labels::CheckBoxOn).0;
-        let (cb_off, cb_x_to_y) = resources.get_label(&crate::resources::Labels::CheckBoxOff);
-        let cb_w = SCREEN_WEIGHT * 40.0 / 420.0;
-
-        let back_on = resources.get_label(&crate::resources::Labels::BackOn);
-        let back_off = resources.get_label(&crate::resources::Labels::BackOff);
-        let back_w = SCREEN_WEIGHT * 72.0 / 420.0;
+        let (cb_t, cb_size) =  resources.get_button(&Buttons::CheckBox);
+        let cb_size = (cb_size.0 * SCREEN_WEIGHT, cb_size.1 * SCREEN_HEIGHT);
 
         let difficulty_textures = [
-            resources.get_label(&crate::resources::Labels::Practice),
-            resources.get_label(&crate::resources::Labels::Normal),
-            resources.get_label(&crate::resources::Labels::Unreal),
+            resources.get_label(&Labels::Practice),
+            resources.get_label(&Labels::Normal),
+            resources.get_label(&Labels::Unreal),
         ];
         let difficulty_w = SCREEN_WEIGHT * 115.0 / 420.0;
         let difficulty = options.difficulty as usize;
@@ -46,9 +42,9 @@ impl OptionsMenu<'_> {
         OptionsMenu {
             menu: Menu::new(resources, Backgrounds::Options),
             nickname: &mut options.nickname,
-            music_on: CheckBox::new(cb_on, cb_off, cb_w, cb_x_to_y, &mut options.music_on, (SCREEN_WEIGHT / 4.0, 0.26)),
-            sounds_on: CheckBox::new(cb_on, cb_off, cb_w, cb_x_to_y, &mut options.sounds_on, (SCREEN_WEIGHT / 4.0, 0.04)),
-            back_button: Button::new(back_on.0, back_off.0, back_w, back_on.1, (SCREEN_WEIGHT / 4.0, -SCREEN_HEIGHT / 3.5)),
+            music_on: CheckBox::new(&cb_t.on, &cb_t.off, cb_size, &mut options.music_on, (SCREEN_WEIGHT / 4.0, 0.26)),
+            sounds_on: CheckBox::new(&cb_t.on, &cb_t.off, cb_size, &mut options.sounds_on, (SCREEN_WEIGHT / 4.0, 0.04)),
+            back_button: create_button(&resources, &Buttons::Back, (SCREEN_WEIGHT / 4.0, -SCREEN_HEIGHT / 3.5)),
             difficulty_button: Button3Way::new(difficulty_textures, difficulty_w, difficulty, (SCREEN_WEIGHT / 4.0, -0.21) ),
             difficulty: &mut options.difficulty,
             last_resize: get_time() - 2.0,
@@ -65,6 +61,7 @@ impl OptionsMenu<'_> {
             self.difficulty_button.draw(&self.menu.size_params)
         );
         self.size_params.draw_border();
+
         self.back_button.draw(&self.menu.size_params)
     }
 

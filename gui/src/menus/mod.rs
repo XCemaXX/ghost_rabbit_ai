@@ -12,7 +12,7 @@ use super::Options;
 
 use macroquad::prelude::*;
 
-pub use main::MainMenu;
+pub use main::{MainMenu, ScreenType};
 pub use records::RecordsMenu;
 pub use options::OptionsMenu;
 pub use about::AboutMenu;
