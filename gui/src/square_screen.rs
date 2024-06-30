@@ -1,5 +1,5 @@
 
-use macroquad::prelude::{screen_height, screen_width, draw_rectangle, GRAY};
+use macroquad::prelude::{screen_height, screen_width, draw_rectangle, GRAY, Rect, Circle};
 
 pub struct FixedRatioScreen {
     offset_x: f32,
@@ -38,21 +38,15 @@ impl FixedRatioScreen {
         )
     }
 
-    pub fn rectangle_transform(&self, pos: (f32, f32), size: (f32, f32)) -> (f32, f32, f32, f32) {
+    pub fn rectangle_transform(&self, pos: (f32, f32), size: (f32, f32)) -> Rect {
         let (x, y) = self.get_pixel_coords(pos.0, pos.1);
         let (w, h) = (size.0 * self.square_around / 2.0, size.1 * self.square_around / 2.0);
-        (
-            x - w / 2.0, y - h / 2.0,
-            w, h,
-        )
+        Rect{x: x - w / 2.0, y: y - h / 2.0, w, h}
     }
 
-    pub fn circle_transform(&self, pos: (f32, f32), radius: f32) -> (f32, f32, f32) {
+    pub fn circle_transform(&self, pos: (f32, f32), radius: f32) -> Circle {
         let (x, y) = self.get_pixel_coords(pos.0, pos.1);
-        (
-            x, y,
-            radius * self.square_around / 2.0
-        )
+        Circle{x, y, r: radius * self.square_around / 2.0}
     }
 
     fn get_border_rectangles(&self) -> ((f32, f32, f32, f32), (f32, f32, f32, f32)) {

@@ -1,17 +1,16 @@
 mod square_screen;
 mod resources;
 mod game_screen;
-mod main_menu;
-mod records_menu;
+mod menus;
 
 use macroquad::ui::{hash, root_ui};
 use macroquad::prelude::*;
 
 use game_logic::{Difficulty, MonsterType};
+use resources::Resources;
 
 //use neural_network::{LayerTopology, Network};
 
-use resources::Resources;
 
 fn window_conf() -> Conf {
     Conf {
@@ -24,9 +23,19 @@ enum ScreenType {
     Game,
     MainMenu,
     RecordsMenu,
+    HtpMenu,
+    AboutMenu,
+    OptionsMenu,
 }
 
 pub type ScoreArray = [(String, usize); 3];
+
+struct Options {
+    pub nickname: String,
+    pub music_on: bool,
+    pub sounds_on: bool,
+    pub difficulty: Difficulty,
+}
 
 #[macroquad::main(window_conf)]
 async fn main() {
@@ -41,45 +50,83 @@ async fn main() {
     let _ = Network::new(&mut rng, &layers);*/
     let best_scores: ScoreArray = [("a".into(), 75), ("b".into(), 300), ("c".into(), 450)];
     let resources = Resources::load_resources();
+    let mut options = Options {
+        nickname: "XCemaXX".into(),
+        music_on: true,
+        sounds_on: true,
+        difficulty: Difficulty::Normal,
+    };
 
-    let mut current_screen = ScreenType::Game; // TODO: change MainMenu
+    let mut current_screen = ScreenType::OptionsMenu; // TODO: change MainMenu
     loop {
-        match current_screen {
-            ScreenType::Game => { current_screen = run_game_loop(&resources, &best_scores).await },
-            ScreenType::MainMenu => { current_screen = run_main_menu_loop(&resources).await },
-            ScreenType::RecordsMenu => { current_screen = run_records_menu_loop(&resources, &best_scores).await },
-        }
+        current_screen= match current_screen {
+            ScreenType::Game=> { run_game_loop(&resources, &best_scores, &options).await },
+            ScreenType::MainMenu=> { run_main_menu_loop(&resources).await },
+            ScreenType::RecordsMenu=> { run_records_menu_loop(&resources, &best_scores).await },
+            ScreenType::HtpMenu => { run_htp_menu_loop(&resources).await },
+            ScreenType::AboutMenu => { run_about_menu_loop(&resources).await },
+            ScreenType::OptionsMenu => { run_options_menu_loop(&resources, &mut options).await },
+        };
     }
 }
 
 async fn run_records_menu_loop(resources: &Resources, scores: &ScoreArray) -> ScreenType {
-    let mut menu_loop = records_menu::RecordsMenu::new(resources);
+    let mut menu = menus::RecordsMenu::new(resources);
     loop {
-        menu_loop.update_size();
         if is_mouse_button_pressed(MouseButton::Left) {
             break ScreenType::Game; // TODO: change logic with buttons
         }
-        menu_loop.draw();
+        menu.draw_update();
         next_frame().await
     }
 }
 
 async fn run_main_menu_loop(resources: &Resources) -> ScreenType {
-    let mut menu_loop = main_menu::MainMenu::new(resources);
+    let mut menu = menus::MainMenu::new(resources);
     loop {
-        menu_loop.update_size();
         if is_mouse_button_pressed(MouseButton::Left) { // TODO: change logic with buttons
             break ScreenType::Game;
         }
-        menu_loop.draw();
+        menu.draw_update();
         next_frame().await
     }
 }
 
-async fn run_game_loop(resources: &Resources, scores: &ScoreArray) -> ScreenType {
+async fn run_options_menu_loop(resources: &Resources, options: &mut Options) -> ScreenType {
+    let mut menu = menus::OptionsMenu::new(resources, options);
+    while !menu.draw_update() {
+        next_frame().await
+    }
+    next_frame().await;
+    ScreenType::MainMenu
+}
+
+async fn run_htp_menu_loop(resources: &Resources) -> ScreenType {
+    let mut menu = menus::HowToPlayMenu::new(resources);
+    loop {
+        if is_mouse_button_pressed(MouseButton::Left) { // TODO: change logic with buttons
+            break ScreenType::MainMenu;
+        }
+        menu.draw_update();
+        next_frame().await
+    }
+}
+
+async fn run_about_menu_loop(resources: &Resources) -> ScreenType {
+    let mut menu = menus::AboutMenu::new(resources);
+    loop {
+        if is_mouse_button_pressed(MouseButton::Left) { // TODO: change logic with buttons
+            break ScreenType::MainMenu;
+        }
+        menu.draw_update();
+        next_frame().await
+    }
+}
+
+async fn run_game_loop(resources: &Resources, scores: &ScoreArray, options: &Options) -> ScreenType {
     let mut last_update = get_time();
-    let difficulty = Difficulty::Practice; //Difficulty::Medium Practice
-    let mut game_loop = game_screen::GameScreen::new(&resources, difficulty, "XCemaXX".into(), scores);
+    let difficulty = options.difficulty;
+    let mut game_loop = game_screen::GameScreen::new(&resources, difficulty, &options.nickname, scores);
     loop {
         //clear_background(LIGHTGRAY);
         let lu = get_time();

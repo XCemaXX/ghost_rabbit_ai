@@ -1,4 +1,4 @@
-use super::primitives::{Vec2, Rect};
+use super::primitives::{Vec2, Rectangle};
 use super::{SCREEN_HEIGHT, SCREEN_WEIGHT};
 
 const FLOOR_WIDTH: f32 = SCREEN_WEIGHT / 6.3;
@@ -10,8 +10,8 @@ pub struct Floor {
 }
 
 impl Floor {
-    pub fn get_bounding_box(&self) -> Rect {
-        Rect {
+    pub fn get_bounding_box(&self) -> Rectangle {
+        Rectangle {
             x: self.position.x,
             y: self.position.y,
             w: self.size.x,

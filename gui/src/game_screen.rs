@@ -1,5 +1,5 @@
 
-use game_logic::{Difficulty, GameOver, GameState, Side, SCREEN_HEIGHT, SCREEN_WEIGHT};
+use game_logic::{Difficulty, GameState, Side, SCREEN_HEIGHT, SCREEN_WEIGHT};
 use rand_trait::GenRandFloat;
 use crate::ScoreArray;
 
@@ -26,7 +26,7 @@ pub struct GameScreen<'a> {
     resources: &'a Resources,
     state: State,
     state_duration: f64,
-    nick_name: String,
+    nick_name: &'a String,
     best_scores: &'a ScoreArray,
 }
 
@@ -41,7 +41,7 @@ impl GenRandFloat for RandGen {
 }
 
 impl GameScreen<'_> {
-    pub fn new<'a>(resources: &'a Resources, difficulty: Difficulty, nick_name: String, scores: &'a ScoreArray) -> GameScreen<'a> {
+    pub fn new<'a>(resources: &'a Resources, difficulty: Difficulty, nick_name: &'a String, scores: &'a ScoreArray) -> GameScreen<'a> {
         GameScreen {
             game_engine: GameState::new(RandGen{}, difficulty),
             size_params: FixedRatioScreen::new(SCREEN_WEIGHT / SCREEN_HEIGHT),
@@ -127,14 +127,14 @@ impl GameScreen<'_> {
     fn draw_floors(&self) {
         let floor_texture = self.resources.get_platform_texture(&self.game_engine.difficulty);
         for floor in &self.game_engine.floors {
-            let f = self.size_params.rectangle_transform(
+            let r = self.size_params.rectangle_transform(
                 floor.position.into(), 
                 floor.size.into());
             //draw_rectangle(f.0, f.1, f.2, f.3, GRAY);
             draw_texture_ex(
-                &floor_texture, f.0, f.1, WHITE,
+                &floor_texture, r.x, r.y, WHITE,
                 DrawTextureParams {
-                    dest_size: Some(vec2(f.2, f.3)),
+                    dest_size: Some(vec2(r.w, r.h)),
                     ..Default::default()
                 },
             );
@@ -145,14 +145,14 @@ impl GameScreen<'_> {
         let monster = &self.game_engine.monster;
         if !monster.is_dead {
             let monster_texture = self.resources.get_monster_texture(&monster.guise);
-            let monster = self.size_params.rectangle_transform(
+            let r = self.size_params.rectangle_transform(
                 monster.position.into(),
                 monster.size.into());
             //draw_rectangle(monster.0, monster.1, monster.2, monster.3, RED);
             draw_texture_ex(
-                &monster_texture, monster.0, monster.1, WHITE,
+                &monster_texture, r.x, r.y, WHITE,
                 DrawTextureParams {
-                    dest_size: Some(vec2(monster.2, monster.3)),
+                    dest_size: Some(vec2(r.w, r.h)),
                     ..Default::default()
                 },
             );
@@ -164,26 +164,26 @@ impl GameScreen<'_> {
         let player_pos = self.size_params.circle_transform(
             player.position.into(), 
             player.radius);
-        //draw_circle(player.0, player.1, player.2, GREEN);
+        //draw_circle(player_pos.x, player_pos.y, player_pos.r, GREEN);
     
-        let pos = self.size_params.rectangle_transform(
+        let r = self.size_params.rectangle_transform(
             (player.position.x, player.position.y), 
             ((player.radius * 2.) * 25.0 / 10.0, (player.radius*2.0) * 46.0 / 10.0));
         let (texture, mut texture_params) = self.resources.get_player(player.get_stage());
-        texture_params.dest_size = Some(vec2(player_pos.2 * 50.0 / 10.0, player_pos.2 * 88.0 / 10.0));
-        draw_texture_ex(texture, pos.0, pos.1, WHITE, texture_params);
+        texture_params.dest_size = Some(vec2(player_pos.r * 50.0 / 10.0, player_pos.r * 88.0 / 10.0));
+        draw_texture_ex(texture, r.x, r.y, WHITE, texture_params);
     }
     
     fn draw_background(&self) {
         //draw_rectangle_lines(size_params.offset_x, size_params.offset_y, size_params.width, size_params.width, 2.0, BLACK);
-        let s = self.size_params.rectangle_transform(
+        let r = self.size_params.rectangle_transform(
             (0.0, 0.0), 
             (SCREEN_WEIGHT, SCREEN_HEIGHT));
         //draw_rectangle(s.0, s.1, s.2, s.3, BLACK);
         draw_texture_ex(
-            self.resources.get_background(&Backgrounds::Game), s.0, s.1, WHITE,
+            self.resources.get_background(&Backgrounds::Game), r.x, r.y, WHITE,
             DrawTextureParams {
-                dest_size: Some(vec2(s.2, s.3)),
+                dest_size: Some(vec2(r.w, r.h)),
                 ..Default::default()
             },
         );
@@ -246,13 +246,13 @@ impl GameScreen<'_> {
     fn draw_centered_label(&self, texture: &Texture2D, x_to_y_ratio: f32) {
         let x = SCREEN_WEIGHT * 0.75;
         let y = x / x_to_y_ratio;
-        let p = self.size_params.rectangle_transform(
+        let r = self.size_params.rectangle_transform(
             (0.0, 0.0), 
             (x, y));
         draw_texture_ex(
-            &texture, p.0, p.1, WHITE,
+            &texture, r.x, r.y, WHITE,
             DrawTextureParams {
-                dest_size: Some(vec2(p.2, p.3)),
+                dest_size: Some(vec2(r.w, r.h)),
                 ..Default::default()
             },
         );
@@ -267,12 +267,12 @@ impl GameScreen<'_> {
             let (texture, x_to_y) = self.resources.get_label(&Labels::Record);
             let w = SCREEN_WEIGHT * 0.15;
             let h = w / x_to_y;
-            let p = self.size_params.rectangle_transform(
+            let r = self.size_params.rectangle_transform(
                 (-SCREEN_WEIGHT / 2.0 + w / 2.0, y), (w, h));
             draw_texture_ex(
-                &texture, p.0, p.1, WHITE,
+                &texture, r.x, r.y, WHITE,
                 DrawTextureParams {
-                    dest_size: Some(vec2(p.2, p.3)),
+                    dest_size: Some(vec2(r.w, r.h)),
                     ..Default::default()
                 },
             );

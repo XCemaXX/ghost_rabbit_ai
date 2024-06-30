@@ -10,14 +10,18 @@ pub enum Backgrounds {
     Game,
     MainMenu,
     Records,
+    Options,
+    HowToPlay,
+    About,
 }
 
 #[derive(PartialEq, Hash, Eq)]
 pub enum Labels {
-    Pause,
-    GameOver,
+    Pause, GameOver, Win,
     Record,
-    Win,
+    CheckBoxOn, CheckBoxOff,
+    BackOn, BackOff,
+    Normal, Practice, Unreal,
 }
 
 pub struct Resources {
@@ -51,11 +55,22 @@ impl Resources {
         r.backgrounds.insert(Backgrounds::Game, Texture2D::from_file_with_format(include_bytes!("../../resources/textures/background_game.png"), None));
         r.backgrounds.insert(Backgrounds::MainMenu, Texture2D::from_file_with_format(include_bytes!("../../resources/textures/background_main.png"), None));
         r.backgrounds.insert(Backgrounds::Records, Texture2D::from_file_with_format(include_bytes!("../../resources/textures/background_records.png"), None));
+        r.backgrounds.insert(Backgrounds::Options, Texture2D::from_file_with_format(include_bytes!("../../resources/textures/background_options.png"), None));
+        r.backgrounds.insert(Backgrounds::HowToPlay, Texture2D::from_file_with_format(include_bytes!("../../resources/textures/background_htp.png"), None));
+        r.backgrounds.insert(Backgrounds::About, Texture2D::from_file_with_format(include_bytes!("../../resources/textures/background_about.png"), None));
 
         r.labels.insert(Labels::Pause, Texture2D::from_file_with_format(include_bytes!("../../resources/textures/label_pause.png"), None));
         r.labels.insert(Labels::GameOver, Texture2D::from_file_with_format(include_bytes!("../../resources/textures/label_gameover.png"), None));
         r.labels.insert(Labels::Record, Texture2D::from_file_with_format(include_bytes!("../../resources/textures/label_record.png"), None));
         r.labels.insert(Labels::Win, Texture2D::from_file_with_format(include_bytes!("../../resources/textures/label_win.png"), None));
+        r.labels.insert(Labels::CheckBoxOn, Texture2D::from_file_with_format(include_bytes!("../../resources/textures/checkbox_on.png"), None));
+        r.labels.insert(Labels::CheckBoxOff, Texture2D::from_file_with_format(include_bytes!("../../resources/textures/checkbox_off.png"), None));
+
+        r.labels.insert(Labels::BackOn, Texture2D::from_file_with_format(include_bytes!("../../resources/textures/label_back_on.png"), None));
+        r.labels.insert(Labels::BackOff,Texture2D::from_file_with_format(include_bytes!("../../resources/textures/label_back_off.png"), None));
+        r.labels.insert(Labels::Normal, Texture2D::from_file_with_format(include_bytes!("../../resources/textures/label_normal.png"), None));
+        r.labels.insert(Labels::Practice, Texture2D::from_file_with_format(include_bytes!("../../resources/textures/label_practice.png"), None));
+        r.labels.insert(Labels::Unreal, Texture2D::from_file_with_format(include_bytes!("../../resources/textures/label_unreal.png"), None));
 
         r.player = Texture2D::from_file_with_format(include_bytes!("../../resources/textures/rabbit.png"), None);
         return r;

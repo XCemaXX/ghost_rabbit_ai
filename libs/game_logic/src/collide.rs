@@ -1,6 +1,6 @@
-use super::{Circle, Rect};
+use super::{Circle, Rectangle};
 
-pub fn is_collide( c: &Circle, r: &Rect ) -> bool {
+pub fn is_collide( c: &Circle, r: &Rectangle ) -> bool {
     let closest_x = if c.x < (r.x - r.w / 2.0) {
         r.x - r.w / 2.0
     } else if c.x > (r.x + r.w / 2.0) {

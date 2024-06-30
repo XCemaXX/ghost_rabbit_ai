@@ -5,7 +5,7 @@ mod floor;
 mod monster;
 
 use rand_trait::GenRandFloat;
-use primitives::{Vec2, Circle, Rect};
+use primitives::{Vec2, Circle, Rectangle};
 use player::{Player, MAX_JUMP_Y};
 use floor::Floor;
 use monster::Monster;
@@ -189,3 +189,13 @@ fn get_max_floor(floors: &[Floor; MAX_FLOORS]) -> f32 {
     top_floor_pos
 }
 
+impl Difficulty {
+    pub fn from_usize(v: usize) -> Self {
+        match v {
+            0 => Difficulty::Practice,
+            1 => Difficulty::Normal,
+            2 => Difficulty::Unreal,
+            _ => panic!()
+        }
+    }
+}

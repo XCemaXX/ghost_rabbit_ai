@@ -6,7 +6,7 @@ pub struct Circle {
 }
 
 // center in middle
-pub struct Rect {
+pub struct Rectangle {
     pub x: f32,
     pub y: f32,
     pub w: f32,

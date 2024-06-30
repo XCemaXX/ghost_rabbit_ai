@@ -1,19 +1,35 @@
+mod main;
+mod records;
+mod options;
+mod about;
+mod htp;
+mod controls;
+
 use super::resources::{Resources, Backgrounds};
 use super::square_screen::FixedRatioScreen;
 use game_logic::{SCREEN_WEIGHT, SCREEN_HEIGHT};
+use super::Options;
 
 use macroquad::prelude::*;
 
-pub struct RecordsMenu<'a> {
+pub use main::MainMenu;
+pub use records::RecordsMenu;
+pub use options::OptionsMenu;
+pub use about::AboutMenu;
+pub use htp::HowToPlayMenu;
+
+pub struct Menu<'a> {
     size_params: FixedRatioScreen, 
     resources: &'a Resources,
-}
+    background: Backgrounds,
+} 
 
-impl RecordsMenu<'_> {
-    pub fn new<'a>(resources: &'a Resources) -> RecordsMenu<'a> {
-        RecordsMenu {
+impl Menu<'_> {
+    fn new<'a>(resources: &'a Resources, background: Backgrounds) -> Menu<'a> {
+        Menu {
             size_params: FixedRatioScreen::new(SCREEN_WEIGHT / SCREEN_HEIGHT),
             resources,
+            background,
         }
     }
 
@@ -21,21 +37,14 @@ impl RecordsMenu<'_> {
         self.size_params = FixedRatioScreen::new(SCREEN_WEIGHT / SCREEN_HEIGHT); 
     }
 
-    pub fn draw(&self) {
-        self.draw_background();
-        self.size_params.draw_border();
-    }
-
     fn draw_background(&self) {
-        //draw_rectangle_lines(size_params.offset_x, size_params.offset_y, size_params.width, size_params.width, 2.0, BLACK);
-        let s = self.size_params.rectangle_transform(
+        let r = self.size_params.rectangle_transform(
             (0.0, 0.0), 
             (SCREEN_WEIGHT, SCREEN_HEIGHT));
-        //draw_rectangle(s.0, s.1, s.2, s.3, BLACK);
         draw_texture_ex(
-            self.resources.get_background(&Backgrounds::Records), s.0, s.1, WHITE,
+            self.resources.get_background(&self.background), r.x, r.y, WHITE,
             DrawTextureParams {
-                dest_size: Some(vec2(s.2, s.3)),
+                dest_size: Some(vec2(r.w, r.h)),
                 ..Default::default()
             },
         );

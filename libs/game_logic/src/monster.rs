@@ -1,4 +1,4 @@
-use super::primitives::{Vec2, Rect};
+use super::primitives::{Vec2, Rectangle};
 use super::{SCREEN_HEIGHT, SCREEN_WEIGHT, RIGHT_X, LEFT_X, BOT_Y, TOP_Y, CENTER};
 use rand_trait::GenRandFloat;
 
@@ -67,8 +67,8 @@ impl Monster {
         }
     }
 
-    pub fn get_bounding_box(&self) -> Rect {
-        Rect {
+    pub fn get_bounding_box(&self) -> Rectangle {
+        Rectangle {
             x: self.position.x,
             y: self.position.y,
             w: self.size.x * 0.8,
