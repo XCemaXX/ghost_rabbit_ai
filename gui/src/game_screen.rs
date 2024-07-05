@@ -1,7 +1,6 @@
 
 use game_logic::{Difficulty, GameState, Side, SCREEN_HEIGHT, SCREEN_WEIGHT};
 use rand_trait::GenRandFloat;
-use crate::ScoreArray;
 
 use super::resources::{Resources, Backgrounds, Labels};
 use super::square_screen::FixedRatioScreen;
@@ -20,14 +19,16 @@ enum State {
     Finished,
 }
 
-pub struct GameScreen<'a> {
+pub struct GameScreen<'a, ScoreIter> where
+    ScoreIter: IntoIterator<Item = &'a usize> + Copy,
+{
     game_engine: GameState<RandGen>, 
     size_params: FixedRatioScreen, 
     resources: &'a Resources,
     state: State,
     state_duration: f64,
     nick_name: &'a String,
-    best_scores: &'a ScoreArray,
+    best_scores: ScoreIter,
 }
 
 struct RandGen {}
@@ -40,8 +41,8 @@ impl GenRandFloat for RandGen {
     }
 }
 
-impl GameScreen<'_> {
-    pub fn new<'a>(resources: &'a Resources, difficulty: Difficulty, nick_name: &'a String, scores: &'a ScoreArray) -> GameScreen<'a> {
+impl<'a, ScoreIter: IntoIterator<Item = &'a usize> + Copy> GameScreen<'a, ScoreIter> {
+    pub fn new(resources: &'a Resources, difficulty: Difficulty, nick_name: &'a String, scores: ScoreIter) -> Self {
         GameScreen {
             game_engine: GameState::new(RandGen{}, difficulty),
             size_params: FixedRatioScreen::new(SCREEN_WEIGHT / SCREEN_HEIGHT),
@@ -86,9 +87,10 @@ impl GameScreen<'_> {
                 }
             },
             State::ShowGameOver => {
+                let minimal_score = *self.best_scores.clone().into_iter().next().unwrap();
                 if self.state_duration > GAME_OVER_DURATION_SEC {
                     if self.game_engine.difficulty == Difficulty::Practice
-                        || self.game_engine.get_score() < self.best_scores.first().unwrap().1 {
+                        || self.game_engine.get_score() < minimal_score {
                         self.change_state(State::Finished);
                     } else {
                         self.change_state(State::ShowNewRecord);
@@ -259,7 +261,7 @@ impl GameScreen<'_> {
     }
 
     fn draw_records(&self) {
-        for (_, score) in self.best_scores {
+        for score in self.best_scores {
             let (in_screen, y) = self.game_engine.get_score_coord(*score);
             if !in_screen {
                 continue;

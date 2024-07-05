@@ -24,7 +24,7 @@ impl FixedRatioScreen {
         Self { offset_x, offset_y, height, width, font_scale, square_around }
     }
 
-    pub fn normalize_coords(&self, x: f32, y: f32) -> (f32, f32) {
+    pub fn _normalize_coords(&self, x: f32, y: f32) -> (f32, f32) {
         (
             (x - self.offset_x) / self.square_around * 2.0 - 1.0,
             (-y + self.offset_y + self.square_around) * 2.0 / self.square_around - 1.0
