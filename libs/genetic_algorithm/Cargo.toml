@@ -1,5 +1,5 @@
 [package]
-name = "generic_algorithm"
+name = "genetic_algorithm"
 version = "0.1.0"
 edition = "2021"
 
