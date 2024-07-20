@@ -1,6 +1,7 @@
 
 use game_logic::{Difficulty, GameState, Side, SCREEN_HEIGHT, SCREEN_WEIGHT};
-use rand_trait::GenRandFloat;
+
+use crate::rand_gen::RandGen;
 
 use super::resources::{Resources, Backgrounds, Labels};
 use super::square_screen::FixedRatioScreen;
@@ -19,26 +20,23 @@ enum State {
     Finished,
 }
 
+#[derive(PartialEq, Eq)]
+pub enum MoveDirection {
+    Left,
+    Right,
+    None,
+}
+
 pub struct GameScreen<'a, ScoreIter> where
     ScoreIter: IntoIterator<Item = &'a usize> + Copy,
 {
-    game_engine: GameState<RandGen>, 
+    pub game_engine: GameState<RandGen>, 
     size_params: FixedRatioScreen, 
     resources: &'a Resources,
     state: State,
     state_duration: f64,
     nick_name: &'a String,
     best_scores: ScoreIter,
-}
-
-struct RandGen {}
-
-impl GenRandFloat for RandGen {
-    fn gen_range(&mut self, range: std::ops::RangeInclusive<f32>) -> f32 {
-        let low = *range.start();
-        let high = *range.end();
-        rand::gen_range(low, high)
-    }
 }
 
 impl<'a, ScoreIter: IntoIterator<Item = &'a usize> + Copy> GameScreen<'a, ScoreIter> {
@@ -58,22 +56,27 @@ impl<'a, ScoreIter: IntoIterator<Item = &'a usize> + Copy> GameScreen<'a, ScoreI
         self.size_params = FixedRatioScreen::new(SCREEN_WEIGHT / SCREEN_HEIGHT); 
     }
 
-    pub fn update_game_state_by_input(&mut self, dt: f64) {
+    pub fn update_game_state_by_input(&mut self) {
         if self.state != State::Running && self.state != State::Paused {
             return;
         }
         self.update_pause();
-        if self.state == State::Paused {
-            return;
-        }
-            
         for key in get_keys_down() {
             match key {
-                KeyCode::Left => { self.game_engine.move_player_by_x(dt as f32, Side::Left); },
-                KeyCode::Right => { self.game_engine.move_player_by_x(dt as f32, Side::Right); },
                 KeyCode::Escape => { self.change_state(State::Finished); }
                 _ => { },
             }
+        }
+    }
+
+    pub fn move_player(&mut self, dt: f64, move_direction: MoveDirection) {
+        if self.state != State::Running {
+            return;
+        }
+        match move_direction {
+            MoveDirection::Left => { self.game_engine.move_player_by_x(dt as f32, Side::Left); },
+            MoveDirection::Right => { self.game_engine.move_player_by_x(dt as f32, Side::Right); },
+            _ => { },
         }
     }
 
@@ -299,4 +302,28 @@ impl<'a, ScoreIter: IntoIterator<Item = &'a usize> + Copy> GameScreen<'a, ScoreI
         self.state_duration = 0.0;
         self.state = state;
     }
+}
+
+pub fn get_move_direction_by_input() -> MoveDirection {
+    let mut move_direction = MoveDirection::None;
+    for key in get_keys_down() {
+        match key {
+            KeyCode::Left => { 
+                move_direction = if move_direction == MoveDirection::Right {
+                    MoveDirection::None
+                } else {
+                    MoveDirection::Left
+                };
+            },
+            KeyCode::Right => { 
+                move_direction = if move_direction == MoveDirection::Left {
+                    MoveDirection::None
+                } else {
+                    MoveDirection::Right
+                };
+            },
+            _ => { },
+        }
+    }
+    move_direction
 }

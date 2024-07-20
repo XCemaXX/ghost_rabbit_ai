@@ -12,6 +12,7 @@ pub enum ScreenType {
     HtpMenu,
     AboutMenu,
     OptionsMenu,
+    GameAi,
 }
 
 pub struct MainMenu<'a> {
@@ -21,8 +22,8 @@ pub struct MainMenu<'a> {
     htp_button: Button<'a>,
     records_button: Button<'a>,
     about_button: Button<'a>,
+    ai_button: Button<'a>,
 }
-
 
 impl MainMenu<'_> {
     pub fn new<'a>(resources: &'a Resources) -> MainMenu<'a> {
@@ -33,6 +34,7 @@ impl MainMenu<'_> {
             records_button: create_button(&resources, &Buttons::Records, (0.26, -0.38)),
             about_button: create_button(&resources, &Buttons::About, (0.47, -0.61)),
             htp_button: create_button(&resources, &Buttons::HowToPlay, (-0.21, -0.78)),
+            ai_button: create_button(&resources, &Buttons::Ai, (0.47, 0.02)),
         }
     }
 
@@ -51,6 +53,8 @@ impl MainMenu<'_> {
             ScreenType::RecordsMenu
         } else if self.htp_button.draw(&self.menu.size_params) {
             ScreenType::HtpMenu
+        } else if self.ai_button.draw(&self.menu.size_params) {
+            ScreenType::GameAi
         } else {
             ScreenType::MainMenu
         }

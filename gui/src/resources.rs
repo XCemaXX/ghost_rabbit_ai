@@ -32,6 +32,7 @@ pub enum Buttons {
     Records,
     CheckBox,
     ClearRecords,
+    Ai,
 }
 
 pub struct ButtonTextures{
@@ -120,7 +121,10 @@ impl Resources {
             on: Texture2D::from_file_with_format(include_bytes!("../../resources/textures/button_clear_on.png"), None),
             off: Texture2D::from_file_with_format(include_bytes!("../../resources/textures/button_clear_off.png"), None)
         });
-        
+        r.buttons.insert(Buttons::Ai, ButtonTextures{
+            on: Texture2D::from_file_with_format(include_bytes!("../../resources/textures/button_ai_on.png"), None),
+            off: Texture2D::from_file_with_format(include_bytes!("../../resources/textures/button_ai_off.png"), None)
+        });
 
         r.player = Texture2D::from_file_with_format(include_bytes!("../../resources/textures/rabbit.png"), None);
         return r;

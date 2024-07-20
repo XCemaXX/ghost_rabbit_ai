@@ -16,7 +16,7 @@ pub enum MonsterType {
 pub struct Monster {
     pub position: Vec2,
     pub size: Vec2,
-    speed: Vec2,
+    pub speed: Vec2,
     pub dead_time: f32,
     pub guise: MonsterType,
     pub is_dead: bool,

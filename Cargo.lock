@@ -101,7 +101,14 @@ dependencies = [
 ]
 
 [[package]]
-name = "generic_algorithm"
+name = "game_logic"
+version = "0.1.0"
+dependencies = [
+ "rand_trait",
+]
+
+[[package]]
+name = "genetic_algorithm"
 version = "0.1.0"
 dependencies = [
  "rand_trait",
@@ -111,6 +118,8 @@ dependencies = [
 name = "ghost_rabbit_ai"
 version = "0.1.0"
 dependencies = [
+ "game_logic",
+ "genetic_algorithm",
  "macroquad",
  "neural_network",
  "rand_trait",
