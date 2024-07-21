@@ -3,16 +3,20 @@ mod chromosome;
 mod crossover;
 mod mutation;
 
-use chromosome::Chromosome;
+use rand_trait::GenRandFloat;
 use crossover::CrossoverMethod;
 use mutation::MutationMethod;
-use rand_trait::GenRandFloat;
 use selection::SelectionMethod;
+
+pub use chromosome::Chromosome;
+pub use crossover::BlxACrossover;
+pub use selection::RouletteWheelSelection;
+pub use mutation::GaussianMutation;
 
 pub trait Individual {
     fn fitness(&self) -> f32;
     fn chromosome(&self) -> &Chromosome;
-    fn create(chromosome: &Chromosome) -> Self;
+    fn create(chromosome: Chromosome) -> Self;
 }
 
 pub struct GeneticAlgorithm<S, C, M> {
@@ -46,8 +50,8 @@ impl<S:SelectionMethod, C:CrossoverMethod, M:MutationMethod> GeneticAlgorithm<S,
 
     fn get_top_parents<I: Individual>(&self, population: &[I], parents_count: usize) -> Vec<I> {
         let mut fitness: Vec<(f32, &I)> = population.iter().map(|individual| (individual.fitness(), individual)).collect();
-        fitness.sort_by(|a, b| { a.0.partial_cmp(&b.0).unwrap() });
-        fitness[0..parents_count].iter().map(|(_, i)| { I::create(i.chromosome()) }).collect()
+        fitness.sort_by(|a, b| { b.0.partial_cmp(&a.0).unwrap() });
+        fitness[0..parents_count].iter().map(|(_, i)| { I::create(i.chromosome().clone()) }).collect()
     }
 
     fn create_children<I: Individual, R: GenRandFloat>(&self, rng: &mut R, population: &[I], children_count: usize) -> Vec<I> {
@@ -56,7 +60,7 @@ impl<S:SelectionMethod, C:CrossoverMethod, M:MutationMethod> GeneticAlgorithm<S,
             let parent_b = self.selection_method.select(rng, population).chromosome();
             let mut child = self.crossover_method.crossover(rng, parent_a, parent_b);
             self.mutation_method.mutate(rng, &mut child);
-            I::create(&child)
+            I::create(child)
         }).collect()
     }
 }

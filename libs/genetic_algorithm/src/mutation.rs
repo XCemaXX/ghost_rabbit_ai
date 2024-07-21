@@ -21,8 +21,7 @@ impl GaussianMutation {
 impl MutationMethod for GaussianMutation {
     fn mutate<R:GenRandFloat>(&self, rng: &mut R, chromosome: &mut Chromosome) {
         for g in chromosome.iter_mut() {
-            let change = rng.gen_range(-self.probability_to_change_genes..=self.probability_to_change_genes);
-            if change > 0.0 {
+            if rng.gen_range(0.0..=1.0) < self.probability_to_change_genes {
                 *g += rng.gen_range(-self.change_magnitude..=self.change_magnitude);
             }
         }

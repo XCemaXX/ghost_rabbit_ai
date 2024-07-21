@@ -30,9 +30,10 @@ pub enum Difficulty {
 }
 
 #[derive(PartialEq)]
-pub enum Side {
+pub enum MoveDirection {
     Left,
     Right,
+    None,
 }
 
 pub type GameOver = bool;
@@ -83,9 +84,12 @@ impl<T:GenRandFloat> GameState<T> {
         return self.is_game_over();
     }
 
-    pub fn move_player_by_x(&mut self, dt: f32, side: Side) {
+    pub fn move_player_by_x(&mut self, dt: f32, side: MoveDirection) {
+        if side == MoveDirection::None {
+            return;
+        }
         let mut ds = dt * 60.0 * 7.0 / 420.0;
-        if side == Side::Left {
+        if side == MoveDirection::Left {
             ds = -ds;
         }
         self.player.position.x += ds;
@@ -195,7 +199,7 @@ impl Difficulty {
             0 => Difficulty::Practice,
             1 => Difficulty::Normal,
             2 => Difficulty::Unreal,
-            _ => panic!()
+            _ => panic!("Not supported difficulty")
         }
     }
 }

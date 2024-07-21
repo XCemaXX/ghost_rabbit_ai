@@ -25,7 +25,13 @@ impl CrossoverMethod for BlxACrossover {
             let cmin = a.min(b);
             let cmax = a.max(b);
             let d = cmax - cmin;
-            rng.gen_range((cmin - d * self.alpha)..=(cmax + d * self.alpha))
+            let start = cmin - d * self.alpha;
+            let end = cmax + d * self.alpha;
+            if start == end {
+                start
+            } else {
+                rng.gen_range(start..=end)
+            }
         }).collect()
     }
     

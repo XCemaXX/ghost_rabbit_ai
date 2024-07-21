@@ -1,5 +1,5 @@
 
-use game_logic::{Difficulty, GameState, Side, SCREEN_HEIGHT, SCREEN_WEIGHT};
+use game_logic::{Difficulty, GameState, MoveDirection, SCREEN_HEIGHT, SCREEN_WEIGHT};
 
 use crate::rand_gen::RandGen;
 
@@ -18,13 +18,6 @@ enum State {
     ShowNewRecord,
     ShowGameOver,
     Finished,
-}
-
-#[derive(PartialEq, Eq)]
-pub enum MoveDirection {
-    Left,
-    Right,
-    None,
 }
 
 pub struct GameScreen<'a, ScoreIter> where
@@ -73,11 +66,7 @@ impl<'a, ScoreIter: IntoIterator<Item = &'a usize> + Copy> GameScreen<'a, ScoreI
         if self.state != State::Running {
             return;
         }
-        match move_direction {
-            MoveDirection::Left => { self.game_engine.move_player_by_x(dt as f32, Side::Left); },
-            MoveDirection::Right => { self.game_engine.move_player_by_x(dt as f32, Side::Right); },
-            _ => { },
-        }
+        self.game_engine.move_player_by_x(dt as f32, move_direction);
     }
 
     pub fn next_step(&mut self, dt: f64) {
@@ -93,7 +82,7 @@ impl<'a, ScoreIter: IntoIterator<Item = &'a usize> + Copy> GameScreen<'a, ScoreI
                 let minimal_score = *self.best_scores.clone().into_iter().next().unwrap();
                 if self.state_duration > GAME_OVER_DURATION_SEC {
                     if self.game_engine.difficulty == Difficulty::Practice
-                        || self.game_engine.get_score() < minimal_score {
+                        || self.get_score() < minimal_score {
                         self.change_state(State::Finished);
                     } else {
                         self.change_state(State::ShowNewRecord);
@@ -197,7 +186,7 @@ impl<'a, ScoreIter: IntoIterator<Item = &'a usize> + Copy> GameScreen<'a, ScoreI
     fn draw_score(&self) {
         let coords = self.size_params.get_pixel_coords(SCREEN_WEIGHT / 2.0 * 0.4, SCREEN_HEIGHT / 2.0 * 0.85);
         draw_text_ex(
-            &format!("Score: {}", self.game_engine.get_score()),
+            &format!("Score: {}", self.get_score()),
             coords.0, coords.1,
             TextParams {
                 font_size: 50,

@@ -24,6 +24,26 @@ impl Network {
 
         Self { layers }
     }
+
+    pub fn weights(&self) -> impl Iterator<Item = f32> + '_ {
+        self.layers.iter()
+            .flat_map(|layer| layer.neurons.iter())
+            .flat_map(|neuron| std::iter::once(&neuron.bias).chain(&neuron.weights))
+            .cloned()
+    }
+
+    pub fn from_weights(topology: &[LayerTopology], weights: impl IntoIterator<Item = f32>) -> Self {
+        assert!(topology.len() > 1);
+        let mut weights = weights.into_iter();
+        let layers = topology
+            .windows(2)
+            .map(|topology| Layer::from_weights(topology[0].neurons, topology[1].neurons, &mut weights) )
+            .collect();
+        if weights.next().is_some() {
+            panic!("too match weights");
+        }
+        Self{ layers }
+    }
 }
 
 #[derive(Debug)]

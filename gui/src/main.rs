@@ -4,18 +4,17 @@ mod game_screen;
 mod menus;
 mod recrord_table;
 mod rand_gen;
+mod learn_ai;
 
-use game_screen::MoveDirection;
 use macroquad::ui::{hash, root_ui};
 use macroquad::prelude::*;
 
-use game_logic::{Difficulty, GameState, MonsterType};
-use rand_gen::RandGen;
+use game_logic::{Difficulty, MonsterType};
 use resources::Resources;
 use menus::ScreenType;
 use recrord_table::{RecordTables, get_default_records};
 
-use neural_network::{LayerTopology, Network};
+use learn_ai::{generate_inputs_for_ai, learn_ai, get_next_move_by_ai};
 
 fn window_conf() -> Conf {
     Conf {
@@ -142,9 +141,9 @@ async fn run_game_loop(resources: &Resources, record_tables: &mut RecordTables, 
 }
 
 async fn run_ai_game_loop(resources: &Resources, record_tables: &mut RecordTables, options: &Options) -> ScreenType {
-    let network = learn_ai();
-    let mut last_update = get_time();
     let difficulty = Difficulty::Unreal;
+    let ai_player = learn_ai(difficulty);
+    let mut last_update = get_time();
     let record_table = record_tables.get_mut(&difficulty).unwrap();
     let mut game_loop = game_screen::GameScreen::new(&resources, difficulty, &options.nickname, &record_table.scores);
     loop {
@@ -156,7 +155,7 @@ async fn run_ai_game_loop(resources: &Resources, record_tables: &mut RecordTable
         game_loop.update_game_state_by_input();
 
         let inputs_ai = generate_inputs_for_ai(&game_loop.game_engine);
-        let move_direction = get_next_move_by_ai(&network, inputs_ai);
+        let move_direction = get_next_move_by_ai(&ai_player, inputs_ai);
 
         game_loop.move_player(dt, move_direction);
         game_loop.next_step(dt);
@@ -167,50 +166,4 @@ async fn run_ai_game_loop(resources: &Resources, record_tables: &mut RecordTable
         next_frame().await
     };
     ScreenType::MainMenu
-}
-
-fn learn_ai() -> Network {
-    // TODO!
-    let layers = vec![
-        LayerTopology { neurons: 4 + 5 + 24 },
-        LayerTopology { neurons: 10 }, // will try 8-18
-        LayerTopology { neurons: 2 },
-    ];
-    let mut rng = rand_gen::RandGen{};
-    let network = Network::new(&mut rng, &layers);
-    
-    network
-}
-
-fn generate_inputs_for_ai(game: &GameState<RandGen>) -> Vec<f32> {
-    let mut inputs = Vec::new();
-    inputs.push(game.player.position.x);
-    inputs.push(game.player.position.y);
-    inputs.push(game.player.speed.x);
-    inputs.push(game.player.speed.y);
-    inputs.push(game.monster.position.x);
-    inputs.push(game.monster.position.y);
-    inputs.push(game.monster.speed.x);
-    inputs.push(game.monster.speed.y);
-    inputs.push(game.monster.is_dead as i32 as f32);
-    let mut floor_positions: Vec<(f32, f32)> = game.floors.iter().map(|f| {
-        (f.position.x, f.position.y)
-    }).collect();
-    floor_positions.sort_by(|a, b| { a.0.partial_cmp(&b.0).unwrap() });
-    for (x, y) in floor_positions {
-        inputs.push(x);
-        inputs.push(y);
-    }
-    inputs
-}
-
-fn get_next_move_by_ai(network: &Network, inputs: Vec<f32>) -> MoveDirection {
-    let response = network.propagate(inputs);
-    if response[0] < 0.5 && response[1] < 0.5 {
-        MoveDirection::None
-    } else if response[0] > 0.5 {
-        MoveDirection::Left
-    } else {
-        MoveDirection::Right
-    }
 }
