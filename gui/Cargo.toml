@@ -9,3 +9,7 @@ rand_trait = { path = "../libs/rand_trait" }
 neural_network = { path = "../libs/neural_network" }
 genetic_algorithm = { path = "../libs/genetic_algorithm" }
 game_logic = { path = "../libs/game_logic" }
+
+[dev-dependencies]
+rand = "0.8.5"
+genetic_algorithm = { path = "../libs/genetic_algorithm", features = ["testing"] }

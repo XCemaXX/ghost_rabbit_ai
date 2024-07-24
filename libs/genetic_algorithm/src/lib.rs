@@ -51,6 +51,12 @@ impl<S:SelectionMethod, C:CrossoverMethod, M:MutationMethod> GeneticAlgorithm<S,
     fn get_top_parents<I: Individual>(&self, population: &[I], parents_count: usize) -> Vec<I> {
         let mut fitness: Vec<(f32, &I)> = population.iter().map(|individual| (individual.fitness(), individual)).collect();
         fitness.sort_by(|a, b| { b.0.partial_cmp(&a.0).unwrap() });
+        
+        #[cfg(feature = "testing")]
+        {
+            let d: Vec<_> = fitness[0..parents_count].iter().map(|(a, _)| {a}).collect();
+            println!("{:?}", d);
+        }
         fitness[0..parents_count].iter().map(|(_, i)| { I::create(i.chromosome().clone()) }).collect()
     }
 

@@ -5,3 +5,6 @@ edition = "2021"
 
 [dependencies]
 rand_trait = { path = "../rand_trait" }
+
+[features]
+testing = []

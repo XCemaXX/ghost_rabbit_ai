@@ -142,3 +142,14 @@ pub fn get_next_move_by_ai(network: &Network, inputs: Vec<f32>) -> MoveDirection
         MoveDirection::None
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn learn_ai_test() {
+        let difficulty = Difficulty::Unreal;
+        let _ai_player = learn_ai(difficulty);
+    }
+}

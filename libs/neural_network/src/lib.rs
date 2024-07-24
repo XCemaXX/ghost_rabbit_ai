@@ -50,3 +50,45 @@ impl Network {
 pub struct LayerTopology {
     pub neurons: usize,
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use rand_trait::GenRandFloat;
+    use rand::{rngs::ThreadRng, thread_rng, Rng};
+
+    pub struct RandGen {
+        rng: ThreadRng,
+    }
+
+    impl RandGen {
+        pub fn new() -> Self {
+            Self {
+                rng: thread_rng(),
+            }
+        }
+    }
+
+    impl GenRandFloat for RandGen {
+        fn gen_range(&mut self, range: std::ops::RangeInclusive<f32>) -> f32 {
+            let low = *range.start();
+            let high = *range.end();
+            self.rng.gen_range(low..high)
+        }
+    }
+
+    const LAYERS_TOPOLOGY: [LayerTopology; 3] = [
+        LayerTopology { neurons: 4 + 5 + 24 },
+        LayerTopology { neurons: 14 },
+        LayerTopology { neurons: 2 },
+    ];
+
+    #[test]
+    fn weights() {
+        let mut rng = RandGen::new();
+        let brain = Network::new(&mut rng, &LAYERS_TOPOLOGY);
+        let ws  = brain.weights().collect::<Vec<_>>();
+        let brain2 = Network::from_weights(&LAYERS_TOPOLOGY, ws);
+        assert_eq!(brain.weights().collect::<Vec<_>>(), brain2.weights().collect::<Vec<_>>());
+    }
+}
