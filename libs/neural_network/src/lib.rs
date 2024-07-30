@@ -54,6 +54,7 @@ pub struct LayerTopology {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use self::neuron::Neuron;
     use rand_trait::GenRandFloat;
     use rand::{rngs::ThreadRng, thread_rng, Rng};
 
@@ -90,5 +91,24 @@ mod tests {
         let ws  = brain.weights().collect::<Vec<_>>();
         let brain2 = Network::from_weights(&LAYERS_TOPOLOGY, ws);
         assert_eq!(brain.weights().collect::<Vec<_>>(), brain2.weights().collect::<Vec<_>>());
+    }
+
+    #[test]
+    fn propagate() {
+        let layers = (
+            Layer{neurons: vec![
+                Neuron{bias: 0.0, weights: vec![-0.5, -0.4, -0.3]},
+                Neuron{bias: 0.0, weights: vec![-0.2, -0.1, 0.0]},
+            ]},
+            Layer{neurons:vec![Neuron{bias:0.0,  weights: vec![-0.5, 0.5]}]},
+        );
+        let network = Network{ layers: vec![layers.0.clone(), layers.1.clone()] };
+
+        let actual = network.propagate(vec![0.5, 0.6, 0.7]);
+        let expected = layers.1.propagate(layers.0.propagate(vec![0.5, 0.6, 0.7]));
+        
+        for (f, s) in std::iter::zip(actual, expected) {
+            assert!((f - s).abs() < f32::EPSILON)
+        }
     }
 }

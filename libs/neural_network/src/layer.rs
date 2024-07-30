@@ -1,7 +1,7 @@
 use crate::GenRandFloat;
 use crate::neuron::Neuron;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Layer {
     pub(crate) neurons: Vec<Neuron>,
 }

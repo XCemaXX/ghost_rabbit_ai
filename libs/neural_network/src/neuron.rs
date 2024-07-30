@@ -1,6 +1,6 @@
 use crate::GenRandFloat;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Neuron {
     pub(crate) bias: f32,
     pub(crate) weights: Vec<f32>,
@@ -36,6 +36,22 @@ impl Neuron {
         Self {
             bias,
             weights,
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    mod propagate {
+        use super::*;
+
+        #[test]
+        fn returns_propagated_input() {
+            let actual = Neuron{bias:0.1, weights: vec![-0.3, 0.6, 0.9]}.propagate(&[0.5, -0.6, 0.7]);
+            let expected: f32 = 0.1 + (0.5 * -0.3) + (-0.6 * 0.6) + (0.7 * 0.9);
+            
+            assert!((actual - expected).abs() < f32::EPSILON);
         }
     }
 }
