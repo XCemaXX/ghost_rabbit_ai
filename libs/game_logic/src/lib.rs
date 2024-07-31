@@ -164,9 +164,9 @@ impl<T:GenRandFloat> GameState<T> {
         if self.monster.dead_time > self.monster_recreation_timer {
             const SPEED_CONSTANT: f32 = 0.2;
             let speed_abs = if self.difficulty == Difficulty::Unreal {
-                self.rng.gen_range((4.0 * SPEED_CONSTANT)..=(7.0 * SPEED_CONSTANT))
+                self.rng.gen_range((3.0 * SPEED_CONSTANT)..=(6.0 * SPEED_CONSTANT))
             } else {
-                self.rng.gen_range((2.0 * SPEED_CONSTANT)..=(6.0 * SPEED_CONSTANT))
+                self.rng.gen_range((2.0 * SPEED_CONSTANT)..=(5.5 * SPEED_CONSTANT))
             };
             self.monster = Monster::new(&mut self.rng, &self.player.position, speed_abs);
             // todo recalc rectreation_timer based on score
@@ -199,6 +199,23 @@ impl Difficulty {
             0 => Difficulty::Practice,
             1 => Difficulty::Normal,
             2 => Difficulty::Unreal,
+            _ => panic!("Not supported difficulty")
+        }
+    }
+
+    pub fn as_str(&self) -> &str {
+        match self {
+            Difficulty::Practice => "Practice",
+            Difficulty::Normal => "Normal",
+            Difficulty::Unreal => "Unreal",
+        }
+    }
+
+    pub fn from_str(s: &str) -> Self {
+        match s {
+            "Practice" => Difficulty::Practice,
+            "Normal" => Difficulty::Normal,
+            "Unreal" => Difficulty::Unreal,
             _ => panic!("Not supported difficulty")
         }
     }

@@ -8,7 +8,7 @@ mod controls;
 use super::resources::{Resources, Backgrounds};
 use super::square_screen::FixedRatioScreen;
 use game_logic::{SCREEN_WEIGHT, SCREEN_HEIGHT};
-use super::{Options, RecordTables, get_default_records};
+use super::{Options, RecordTables};
 
 use macroquad::prelude::*;
 

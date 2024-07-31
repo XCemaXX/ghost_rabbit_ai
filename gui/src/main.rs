@@ -5,6 +5,7 @@ mod menus;
 mod recrord_table;
 mod rand_gen;
 mod learn_ai;
+mod options;
 
 use macroquad::ui::{hash, root_ui};
 use macroquad::prelude::*;
@@ -12,7 +13,8 @@ use macroquad::prelude::*;
 use game_logic::{Difficulty, MonsterType};
 use resources::Resources;
 use menus::ScreenType;
-use recrord_table::{RecordTables, get_default_records};
+use recrord_table::RecordTables;
+use options::Options;
 
 use learn_ai::{generate_inputs_for_ai, learn_ai, get_next_move_by_ai};
 
@@ -23,23 +25,11 @@ fn window_conf() -> Conf {
     }
 }
 
-struct Options {
-    pub nickname: String,
-    pub music_on: bool,
-    pub sounds_on: bool,
-    pub difficulty: Difficulty,
-}
-
 #[macroquad::main(window_conf)]
 async fn main() {
-    let mut record_tables = get_default_records();
+    let mut record_tables = RecordTables::new();
     let resources = Resources::load_resources();
-    let mut options = Options {
-        nickname: "XCemaXX".into(),
-        music_on: true,
-        sounds_on: true,
-        difficulty: Difficulty::Normal,
-    };
+    let mut options = Options::new();
 
     let mut current_screen = ScreenType::MainMenu;
     loop {
@@ -82,6 +72,7 @@ async fn run_options_menu_loop(resources: &Resources, options: &mut Options) -> 
     while !menu.draw_update() {
         next_frame().await;
     }
+    options.save();
     next_frame().await;
     ScreenType::MainMenu
 }
@@ -107,7 +98,7 @@ async fn run_about_menu_loop(resources: &Resources) -> ScreenType {
 async fn run_game_loop(resources: &Resources, record_tables: &mut RecordTables, options: &Options) -> ScreenType {
     let mut last_update = get_time();
     let difficulty = options.difficulty;
-    let record_table = record_tables.get_mut(&difficulty).unwrap();
+    let record_table = record_tables.get_table(&difficulty);
     let mut game_loop = game_screen::GameScreen::new(&resources, difficulty, &options.nickname, &record_table.scores);
     let score = loop {
         //clear_background(LIGHTGRAY);
@@ -136,7 +127,7 @@ async fn run_game_loop(resources: &Resources, record_tables: &mut RecordTables, 
     if difficulty == Difficulty::Practice || &score < &record_table.scores[0] {
         return ScreenType::MainMenu
     }
-    record_table.insert(options.nickname.clone(), score);
+    record_tables.insert(&difficulty, options.nickname.clone(), score);
     ScreenType::RecordsMenu
 }
 
@@ -144,7 +135,7 @@ async fn run_ai_game_loop(resources: &Resources, record_tables: &mut RecordTable
     let difficulty = Difficulty::Unreal;
     let ai_player = learn_ai(difficulty);
     let mut last_update = get_time();
-    let record_table = record_tables.get_mut(&difficulty).unwrap();
+    let record_table = record_tables.get_table(&difficulty);
     let mut game_loop = game_screen::GameScreen::new(&resources, difficulty, &options.nickname, &record_table.scores);
     loop {
         let lu = get_time();

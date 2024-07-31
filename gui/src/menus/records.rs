@@ -1,7 +1,7 @@
 use game_logic::Difficulty;
 
 use super::Menu;
-use super::{Resources, Backgrounds, RecordTables, get_default_records};
+use super::{Resources, Backgrounds, RecordTables};
 use std::ops::{Deref, DerefMut};
 use super::controls::{create_button, Button};
 use crate::resources::Buttons;
@@ -32,18 +32,18 @@ impl RecordsMenu<'_> {
         self.draw_records();
         self.size_params.draw_border();
         if self.clear_button.draw(&self.menu.size_params) {
-            *self.record_tables = get_default_records();
+            self.record_tables.set_default();
         }
         self.back_button.draw(&self.menu.size_params)
     }
 
     fn draw_records(&self) {
-        let record_table = self.record_tables.get(&Difficulty::Normal).unwrap();
+        let record_table = self.record_tables.get_table(&Difficulty::Normal);
         let count = record_table.names.len();
         for i in 0..count {
             self.draw_nick(&record_table.names[i], record_table.scores[i], count - i - 1, YELLOW, 0.03);
         }
-        let record_table = self.record_tables.get(&Difficulty::Unreal).unwrap();
+        let record_table = self.record_tables.get_table(&Difficulty::Unreal);
         for i in 0..count {
             self.draw_nick(&record_table.names[i], record_table.scores[i], count - i - 1, RED, 0.67);
         }
