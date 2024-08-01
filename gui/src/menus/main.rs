@@ -4,6 +4,7 @@ use std::ops::{Deref, DerefMut};
 use super::controls::{create_button, Button};
 use crate::resources::Buttons;
 
+#[allow(dead_code)]
 #[derive(PartialEq, Eq)]
 pub enum ScreenType {
     Game,

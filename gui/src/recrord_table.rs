@@ -64,6 +64,7 @@ impl RecordTables {
             }
             res.insert(d, rt);
         }
+        res.insert(Difficulty::Practice, RecordTable::new(&Difficulty::Practice));
         Self(res)
     }
 

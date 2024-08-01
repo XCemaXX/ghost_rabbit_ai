@@ -164,7 +164,7 @@ impl<T:GenRandFloat> GameState<T> {
         if self.monster.dead_time > self.monster_recreation_timer {
             const SPEED_CONSTANT: f32 = 0.2;
             let speed_abs = if self.difficulty == Difficulty::Unreal {
-                self.rng.gen_range((3.0 * SPEED_CONSTANT)..=(6.0 * SPEED_CONSTANT))
+                self.rng.gen_range((3.0 * SPEED_CONSTANT)..=(6.5 * SPEED_CONSTANT))
             } else {
                 self.rng.gen_range((2.0 * SPEED_CONSTANT)..=(5.5 * SPEED_CONSTANT))
             };
@@ -181,7 +181,7 @@ fn is_player_over_floor(p: &Player, f: &Floor) -> bool {
 fn create_floor<T:GenRandFloat>(rng: &mut T, floor: &mut Floor, top_floor_y: f32) -> f32 {
     const MIN_FLOOR_DIST: f32 = SCREEN_HEIGHT / MAX_FLOORS as f32;
     floor.position.x = rng.gen_range((LEFT_X + floor.size.x / 2.0)..=(RIGHT_X - floor.size.x / 2.0));
-    floor.position.y = rng.gen_range((top_floor_y + MIN_FLOOR_DIST)..=(top_floor_y + MAX_JUMP_Y));
+    floor.position.y = rng.gen_range((top_floor_y + MIN_FLOOR_DIST)..=(top_floor_y + MAX_JUMP_Y * 0.95));
     floor.position.y
 }
 

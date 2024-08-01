@@ -10,6 +10,7 @@ use macroquad::prelude::*;
 
 const GAME_OVER_DURATION_SEC: f64 = 1.3;
 const WIN_DURATION_SEC: f64 = 1.0;
+const P1000_DURATION_SEC: f64 = 1.5;
 
 #[derive(PartialEq, Eq)]
 enum State {
@@ -20,8 +21,7 @@ enum State {
     Finished,
 }
 
-pub struct GameScreen<'a, ScoreIter> where
-    ScoreIter: IntoIterator<Item = &'a usize> + Copy,
+pub struct GameScreen<'a>
 {
     pub game_engine: GameState<RandGen>, 
     size_params: FixedRatioScreen, 
@@ -29,11 +29,12 @@ pub struct GameScreen<'a, ScoreIter> where
     state: State,
     state_duration: f64,
     nick_name: &'a String,
-    best_scores: ScoreIter,
+    best_scores: &'a [usize],
+    show_1000: f64,
 }
 
-impl<'a, ScoreIter: IntoIterator<Item = &'a usize> + Copy> GameScreen<'a, ScoreIter> {
-    pub fn new(resources: &'a Resources, difficulty: Difficulty, nick_name: &'a String, scores: ScoreIter) -> Self {
+impl<'a> GameScreen<'a> {
+    pub fn new(resources: &'a Resources, difficulty: Difficulty, nick_name: &'a String, scores: &'a [usize]) -> Self {
         GameScreen {
             game_engine: GameState::new(RandGen{}, difficulty),
             size_params: FixedRatioScreen::new(SCREEN_WEIGHT / SCREEN_HEIGHT),
@@ -42,6 +43,7 @@ impl<'a, ScoreIter: IntoIterator<Item = &'a usize> + Copy> GameScreen<'a, ScoreI
             nick_name,
             state_duration: 0.0,
             best_scores: scores,
+            show_1000: -1.0,
         }
     }
 
@@ -73,13 +75,14 @@ impl<'a, ScoreIter: IntoIterator<Item = &'a usize> + Copy> GameScreen<'a, ScoreI
         self.state_duration += dt;
         match self.state {
             State::Running => {
+                self.update_1000(dt);
                 let is_game_over = self.game_engine.next_step(dt as f32);
                 if is_game_over {
                     self.change_state(State::ShowGameOver); 
                 }
             },
             State::ShowGameOver => {
-                let minimal_score = *self.best_scores.clone().into_iter().next().unwrap();
+                let minimal_score = *self.best_scores.into_iter().next().unwrap();
                 if self.state_duration > GAME_OVER_DURATION_SEC {
                     if self.game_engine.difficulty == Difficulty::Practice
                         || self.get_score() < minimal_score {
@@ -98,6 +101,18 @@ impl<'a, ScoreIter: IntoIterator<Item = &'a usize> + Copy> GameScreen<'a, ScoreI
         }
     }
 
+    fn update_1000(&mut self, dt: f64) {
+        let score = self.get_score();
+        if (score % 1000 < 17) && (score > 17) {
+            self.show_1000 = dt;
+        } else if self.show_1000 > 0.0 {
+            self.show_1000 += dt;
+        }
+        if self.show_1000 > P1000_DURATION_SEC {
+            self.show_1000 = -1.0;
+        }
+    }
+
     pub fn is_game_over(&self) -> bool {
         self.state == State::Finished
     }
@@ -113,6 +128,7 @@ impl<'a, ScoreIter: IntoIterator<Item = &'a usize> + Copy> GameScreen<'a, ScoreI
         self.draw_player();
         self.draw_monster();
         self.draw_score();
+        self.draw_1000_score();
         self.draw_nick();
         self.draw_state();
         self.size_params.draw_border();
@@ -198,6 +214,27 @@ impl<'a, ScoreIter: IntoIterator<Item = &'a usize> + Copy> GameScreen<'a, ScoreI
         );
     }
 
+    fn draw_1000_score(&self) {
+        if self.state != State::Running || self.show_1000 < 0.0 {
+            return;
+        }
+        let (texture, x_to_y) = self.resources.get_label(&Labels::P1000);
+        let x = SCREEN_WEIGHT * 0.75;
+        let y = x / x_to_y;
+        let r = self.size_params.rectangle_transform(
+            (0.0, SCREEN_HEIGHT / 2.0 * 0.75), 
+            (x / 2.0, y));
+        let frame = (self.state_duration.fract() > 0.5) as i32;
+        draw_texture_ex(
+            &texture, r.x, r.y, WHITE,
+            DrawTextureParams {
+                dest_size: Some(vec2(r.w, r.h)),
+                source: Some(Rect { x: 175.0 * frame as f32, y: 0.0, w: 175.0, h: 53.0 }),
+                ..Default::default()
+            },
+        );
+    }
+
     fn draw_nick(&self) {
         let coords = self.size_params.get_pixel_coords(-SCREEN_WEIGHT / 2.0 * 0.8, SCREEN_HEIGHT / 2.0 * 0.85);
         draw_text_ex(
@@ -223,23 +260,21 @@ impl<'a, ScoreIter: IntoIterator<Item = &'a usize> + Copy> GameScreen<'a, ScoreI
     }
 
     fn draw_pause(&self) {
-        let (texture, x_to_y) = self.resources.get_label(&Labels::Pause);
-        self.draw_centered_label(texture, x_to_y);
+        self.draw_centered_label(&Labels::Pause);
     }
 
     fn draw_win(&self) {
-        let (texture, x_to_y) = self.resources.get_label(&Labels::Win);
-        self.draw_centered_label(texture, x_to_y);
+        self.draw_centered_label(&Labels::Win);
     }
 
     fn draw_game_over(&self) {
-        let (texture, x_to_y) = self.resources.get_label(&Labels::GameOver);
-        self.draw_centered_label(texture, x_to_y);
+        self.draw_centered_label(&Labels::GameOver);
     }
 
-    fn draw_centered_label(&self, texture: &Texture2D, x_to_y_ratio: f32) {
+    fn draw_centered_label(&self, label: &Labels) {
+        let (texture, x_to_y) = self.resources.get_label(label);
         let x = SCREEN_WEIGHT * 0.75;
-        let y = x / x_to_y_ratio;
+        let y = x / x_to_y;
         let r = self.size_params.rectangle_transform(
             (0.0, 0.0), 
             (x, y));
