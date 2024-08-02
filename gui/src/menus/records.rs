@@ -34,7 +34,8 @@ impl RecordsMenu<'_> {
         if self.clear_button.draw(&self.menu.size_params) {
             self.record_tables.set_default();
         }
-        self.back_button.draw(&self.menu.size_params)
+        return macroquad::input::get_keys_down().contains(&macroquad::input::KeyCode::Escape) ||
+           self.back_button.draw(&self.menu.size_params)
     }
 
     fn draw_records(&self) {

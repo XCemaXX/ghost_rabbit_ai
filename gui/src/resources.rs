@@ -18,7 +18,7 @@ pub enum Backgrounds {
 #[derive(PartialEq, Hash, Eq)]
 pub enum Labels {
     Pause, GameOver, Win,
-    Record, P1000,
+    Record, P1000, PauseButton,
     Normal, Practice, Unreal,
 }
 
@@ -85,6 +85,7 @@ impl Resources {
         r.labels.insert(Labels::Record, Texture2D::from_file_with_format(include_bytes!("../../resources/textures/label_record.png"), None));
         r.labels.insert(Labels::Win, Texture2D::from_file_with_format(include_bytes!("../../resources/textures/label_win.png"), None));
         r.labels.insert(Labels::P1000, Texture2D::from_file_with_format(include_bytes!("../../resources/textures/label_1000.png"), None));
+        r.labels.insert(Labels::PauseButton, Texture2D::from_file_with_format(include_bytes!("../../resources/textures/label_pause_button.png"), None));
         
         r.labels.insert(Labels::Normal, Texture2D::from_file_with_format(include_bytes!("../../resources/textures/label_normal.png"), None));
         r.labels.insert(Labels::Practice, Texture2D::from_file_with_format(include_bytes!("../../resources/textures/label_practice.png"), None));

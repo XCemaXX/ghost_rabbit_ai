@@ -31,19 +31,26 @@ pub struct GameScreen<'a>
     nick_name: &'a String,
     best_scores: &'a [usize],
     show_1000: f64,
+    pause_button: (&'a Texture2D, f32, f32)
 }
 
 impl<'a> GameScreen<'a> {
     pub fn new(resources: &'a Resources, difficulty: Difficulty, nick_name: &'a String, scores: &'a [usize]) -> Self {
+        let size_params = FixedRatioScreen::new(SCREEN_WEIGHT / SCREEN_HEIGHT);
+        let (texture_pause_button, x_to_y) = resources.get_label(&Labels::PauseButton);
+        let w_pause_button = SCREEN_WEIGHT * 0.08;
+        let h_pause_button = w_pause_button / x_to_y;
+
         GameScreen {
             game_engine: GameState::new(RandGen{}, difficulty),
-            size_params: FixedRatioScreen::new(SCREEN_WEIGHT / SCREEN_HEIGHT),
+            size_params,
             resources,
             state: State::Running,
             nick_name,
             state_duration: 0.0,
             best_scores: scores,
             show_1000: -1.0,
+            pause_button: (texture_pause_button, w_pause_button, h_pause_button)
         }
     }
 
@@ -124,6 +131,7 @@ impl<'a> GameScreen<'a> {
     pub fn draw(&self) {
         self.draw_background();
         self.draw_records();
+        self.draw_pause_button();
         self.draw_floors();
         self.draw_player();
         self.draw_monster();
@@ -308,14 +316,37 @@ impl<'a> GameScreen<'a> {
         }
     }
 
+    fn draw_pause_button(&self) {
+        let (texture, w, h) = self.pause_button;
+        let r = self.size_params.rectangle_transform(
+            (SCREEN_WEIGHT / 2.0 - w / 2.0 * 1.5, - SCREEN_HEIGHT / 2.0 + h / 2.0 * 1.5), (w, h));
+        
+        draw_texture_ex(
+            texture, r.x, r.y, WHITE,
+            DrawTextureParams {
+                dest_size: Some(vec2(r.w, r.h)),
+                ..Default::default()
+            },
+        );
+    }
+
     fn update_pause(&mut self) {
+        let (_, w, h) = self.pause_button;
+        let r = self.size_params.rectangle_transform(
+            (SCREEN_WEIGHT / 2.0 - w / 2.0 * 1.5, - SCREEN_HEIGHT / 2.0 + h / 2.0 * 1.5), (w, h));
+
+        let mut change_state = (self.state == State::Paused || is_cursor_in(&r)) 
+            && is_mouse_button_pressed(MouseButton::Left);
         for key in get_keys_pressed() {
             if key == KeyCode::P {
-                self.change_state(
-                    if self.state == State::Paused { State::Running } else { State::Paused }
-                );
+                change_state = true;
                 break;
             }
+        }
+        if change_state {
+            self.change_state(
+                if self.state == State::Paused { State::Running } else { State::Paused }
+            );
         }
     }
 
@@ -328,18 +359,33 @@ impl<'a> GameScreen<'a> {
     }
 }
 
+fn is_cursor_in(r: &Rect) -> bool {
+    let (x, y) = mouse_position();
+    y > r.y && y < r.y + r.h &&
+    x > r.x && x < r.x + r.w 
+}
+
 pub fn get_move_direction_by_input() -> MoveDirection {
-    let mut move_direction = MoveDirection::None;
+    let (mouse_x, _) = mouse_position();
+    let mut move_direction = if is_mouse_button_down(MouseButton::Left) {
+        if mouse_x * 2.0 > screen_width() {
+            MoveDirection::Right
+        } else {
+            MoveDirection::Left
+        }
+    } else {
+        MoveDirection::None
+    };
     for key in get_keys_down() {
         match key {
-            KeyCode::Left => { 
+            KeyCode::Left | KeyCode::A => { 
                 move_direction = if move_direction == MoveDirection::Right {
                     MoveDirection::None
                 } else {
                     MoveDirection::Left
                 };
             },
-            KeyCode::Right => { 
+            KeyCode::Right | KeyCode::D => { 
                 move_direction = if move_direction == MoveDirection::Left {
                     MoveDirection::None
                 } else {

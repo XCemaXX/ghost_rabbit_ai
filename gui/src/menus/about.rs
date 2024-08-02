@@ -21,7 +21,8 @@ impl AboutMenu<'_> {
         self.update_size();
         self.draw_background();
         self.size_params.draw_border();
-        self.back_button.draw(&self.menu.size_params)
+        return macroquad::input::get_keys_down().contains(&macroquad::input::KeyCode::Escape) ||
+           self.back_button.draw(&self.menu.size_params)
     }
 }
 
