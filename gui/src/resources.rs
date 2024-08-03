@@ -1,8 +1,6 @@
 use macroquad::prelude::*;
-
-use super::Difficulty;
-use super::MonsterType;
-
+use quad_snd::{Playback, AudioContext, Sound};
+use super::{Difficulty, MonsterType};
 use std::collections::HashMap;
 
 #[derive(PartialEq, Hash, Eq)]
@@ -40,6 +38,15 @@ pub struct ButtonTextures{
     pub off:Texture2D
 }
 
+#[derive(PartialEq, Hash, Eq)]
+pub enum Sounds {
+    Background,
+    Death,
+    Hit,
+    Start,
+    Thousand,
+}
+
 pub struct Resources {
     platforms: HashMap<Difficulty, Texture2D>,
     monsters: HashMap<MonsterType, Texture2D>,
@@ -49,6 +56,8 @@ pub struct Resources {
     buttons: HashMap<Buttons, ButtonTextures>,
     font: Font,
     legacy_screen_size: (f32, f32),
+    sounds: HashMap<Sounds, Sound>,
+    sounds_context: AudioContext,
 }
 
 impl Resources {
@@ -61,75 +70,82 @@ impl Resources {
             labels: HashMap::new(),
             buttons: HashMap::new(),
             font: load_ttf_font_from_bytes(include_bytes!("../../resources/fonts/Unitblock.ttf")).unwrap(),
-            legacy_screen_size: (0.0, 0.0)
+            legacy_screen_size: (0.0, 0.0),
+            sounds: HashMap::new(),
+            sounds_context: AudioContext::new(),
         };
-        r.platforms.insert(Difficulty::Practice, Texture2D::from_file_with_format(include_bytes!("../../resources/textures/floor_practice.png"), None));
-        r.platforms.insert(Difficulty::Normal, Texture2D::from_file_with_format(include_bytes!("../../resources/textures/floor_medium.png"), None));
-        r.platforms.insert(Difficulty::Unreal, Texture2D::from_file_with_format(include_bytes!("../../resources/textures/floor_hard.png"), None));
+        r.load_textures();
+        r.load_sounds();
+        r
+    }
 
-        r.monsters.insert(MonsterType::Mummy, Texture2D::from_file_with_format(include_bytes!("../../resources/textures/monster_mummy.png"), None));
-        r.monsters.insert(MonsterType::Jason, Texture2D::from_file_with_format(include_bytes!("../../resources/textures/monster_jason.png"), None));
-        r.monsters.insert(MonsterType::Vampire, Texture2D::from_file_with_format(include_bytes!("../../resources/textures/monster_vampire.png"), None));
-        r.monsters.insert(MonsterType::Frankenstein, Texture2D::from_file_with_format(include_bytes!("../../resources/textures/monster_frankenstein.png"), None));
+    fn load_textures(&mut self) {
+        self.platforms.insert(Difficulty::Practice, Texture2D::from_file_with_format(include_bytes!("../../resources/textures/floor_practice.png"), None));
+        self.platforms.insert(Difficulty::Normal, Texture2D::from_file_with_format(include_bytes!("../../resources/textures/floor_medium.png"), None));
+        self.platforms.insert(Difficulty::Unreal, Texture2D::from_file_with_format(include_bytes!("../../resources/textures/floor_hard.png"), None));
 
-        r.backgrounds.insert(Backgrounds::Game, Texture2D::from_file_with_format(include_bytes!("../../resources/textures/background_game.png"), None));
-        r.backgrounds.insert(Backgrounds::MainMenu, Texture2D::from_file_with_format(include_bytes!("../../resources/textures/background_main.png"), None));
-        r.backgrounds.insert(Backgrounds::Records, Texture2D::from_file_with_format(include_bytes!("../../resources/textures/background_records.png"), None));
-        r.backgrounds.insert(Backgrounds::Options, Texture2D::from_file_with_format(include_bytes!("../../resources/textures/background_options.png"), None));
-        r.backgrounds.insert(Backgrounds::HowToPlay, Texture2D::from_file_with_format(include_bytes!("../../resources/textures/background_htp.png"), None));
-        r.backgrounds.insert(Backgrounds::About, Texture2D::from_file_with_format(include_bytes!("../../resources/textures/background_about.png"), None));
-        r.legacy_screen_size = r.backgrounds[&Backgrounds::Game].size().into();
+        self.monsters.insert(MonsterType::Mummy, Texture2D::from_file_with_format(include_bytes!("../../resources/textures/monster_mummy.png"), None));
+        self.monsters.insert(MonsterType::Jason, Texture2D::from_file_with_format(include_bytes!("../../resources/textures/monster_jason.png"), None));
+        self.monsters.insert(MonsterType::Vampire, Texture2D::from_file_with_format(include_bytes!("../../resources/textures/monster_vampire.png"), None));
+        self.monsters.insert(MonsterType::Frankenstein, Texture2D::from_file_with_format(include_bytes!("../../resources/textures/monster_frankenstein.png"), None));
 
-        r.labels.insert(Labels::Pause, Texture2D::from_file_with_format(include_bytes!("../../resources/textures/label_pause.png"), None));
-        r.labels.insert(Labels::GameOver, Texture2D::from_file_with_format(include_bytes!("../../resources/textures/label_gameover.png"), None));
-        r.labels.insert(Labels::Record, Texture2D::from_file_with_format(include_bytes!("../../resources/textures/label_record.png"), None));
-        r.labels.insert(Labels::Win, Texture2D::from_file_with_format(include_bytes!("../../resources/textures/label_win.png"), None));
-        r.labels.insert(Labels::P1000, Texture2D::from_file_with_format(include_bytes!("../../resources/textures/label_1000.png"), None));
-        r.labels.insert(Labels::PauseButton, Texture2D::from_file_with_format(include_bytes!("../../resources/textures/label_pause_button.png"), None));
+        self.backgrounds.insert(Backgrounds::Game, Texture2D::from_file_with_format(include_bytes!("../../resources/textures/background_game.png"), None));
+        self.backgrounds.insert(Backgrounds::MainMenu, Texture2D::from_file_with_format(include_bytes!("../../resources/textures/background_main.png"), None));
+        self.backgrounds.insert(Backgrounds::Records, Texture2D::from_file_with_format(include_bytes!("../../resources/textures/background_records.png"), None));
+        self.backgrounds.insert(Backgrounds::Options, Texture2D::from_file_with_format(include_bytes!("../../resources/textures/background_options.png"), None));
+        self.backgrounds.insert(Backgrounds::HowToPlay, Texture2D::from_file_with_format(include_bytes!("../../resources/textures/background_htp.png"), None));
+        self.backgrounds.insert(Backgrounds::About, Texture2D::from_file_with_format(include_bytes!("../../resources/textures/background_about.png"), None));
+        self.legacy_screen_size = self.backgrounds[&Backgrounds::Game].size().into();
+
+        self.labels.insert(Labels::Pause, Texture2D::from_file_with_format(include_bytes!("../../resources/textures/label_pause.png"), None));
+        self.labels.insert(Labels::GameOver, Texture2D::from_file_with_format(include_bytes!("../../resources/textures/label_gameover.png"), None));
+        self.labels.insert(Labels::Record, Texture2D::from_file_with_format(include_bytes!("../../resources/textures/label_record.png"), None));
+        self.labels.insert(Labels::Win, Texture2D::from_file_with_format(include_bytes!("../../resources/textures/label_win.png"), None));
+        self.labels.insert(Labels::P1000, Texture2D::from_file_with_format(include_bytes!("../../resources/textures/label_1000.png"), None));
+        self.labels.insert(Labels::PauseButton, Texture2D::from_file_with_format(include_bytes!("../../resources/textures/label_pause_button.png"), None));
         
-        r.labels.insert(Labels::Normal, Texture2D::from_file_with_format(include_bytes!("../../resources/textures/label_normal.png"), None));
-        r.labels.insert(Labels::Practice, Texture2D::from_file_with_format(include_bytes!("../../resources/textures/label_practice.png"), None));
-        r.labels.insert(Labels::Unreal, Texture2D::from_file_with_format(include_bytes!("../../resources/textures/label_unreal.png"), None));
+        self.labels.insert(Labels::Normal, Texture2D::from_file_with_format(include_bytes!("../../resources/textures/label_normal.png"), None));
+        self.labels.insert(Labels::Practice, Texture2D::from_file_with_format(include_bytes!("../../resources/textures/label_practice.png"), None));
+        self.labels.insert(Labels::Unreal, Texture2D::from_file_with_format(include_bytes!("../../resources/textures/label_unreal.png"), None));
 
-        r.buttons.insert(Buttons::CheckBox, ButtonTextures{
+        self.buttons.insert(Buttons::CheckBox, ButtonTextures{
             on: Texture2D::from_file_with_format(include_bytes!("../../resources/textures/checkbox_on.png"), None),
             off: Texture2D::from_file_with_format(include_bytes!("../../resources/textures/checkbox_off.png"), None)
         });
-        r.buttons.insert(Buttons::Back, ButtonTextures{
+        self.buttons.insert(Buttons::Back, ButtonTextures{
             on: Texture2D::from_file_with_format(include_bytes!("../../resources/textures/button_back_on.png"), None),
             off: Texture2D::from_file_with_format(include_bytes!("../../resources/textures/button_back_off.png"), None)
         });
-        r.buttons.insert(Buttons::About, ButtonTextures{
+        self.buttons.insert(Buttons::About, ButtonTextures{
             on: Texture2D::from_file_with_format(include_bytes!("../../resources/textures/button_about_on.png"), None),
             off: Texture2D::from_file_with_format(include_bytes!("../../resources/textures/button_about_off.png"), None)
         });
-        r.buttons.insert(Buttons::HowToPlay, ButtonTextures{
+        self.buttons.insert(Buttons::HowToPlay, ButtonTextures{
             on: Texture2D::from_file_with_format(include_bytes!("../../resources/textures/button_htp_on.png"), None),
             off: Texture2D::from_file_with_format(include_bytes!("../../resources/textures/button_htp_off.png"), None)
         });
-        r.buttons.insert(Buttons::NewGame, ButtonTextures{
+        self.buttons.insert(Buttons::NewGame, ButtonTextures{
             on: Texture2D::from_file_with_format(include_bytes!("../../resources/textures/button_newgame_on.png"), None),
             off: Texture2D::from_file_with_format(include_bytes!("../../resources/textures/button_newgame_off.png"), None)
         });
-        r.buttons.insert(Buttons::Options, ButtonTextures{
+        self.buttons.insert(Buttons::Options, ButtonTextures{
             on: Texture2D::from_file_with_format(include_bytes!("../../resources/textures/button_options_on.png"), None),
             off: Texture2D::from_file_with_format(include_bytes!("../../resources/textures/button_options_off.png"), None)
         });
-        r.buttons.insert(Buttons::Records, ButtonTextures{
+        self.buttons.insert(Buttons::Records, ButtonTextures{
             on: Texture2D::from_file_with_format(include_bytes!("../../resources/textures/button_records_on.png"), None),
             off: Texture2D::from_file_with_format(include_bytes!("../../resources/textures/button_records_off.png"), None)
         });
-        r.buttons.insert(Buttons::ClearRecords, ButtonTextures{
+        self.buttons.insert(Buttons::ClearRecords, ButtonTextures{
             on: Texture2D::from_file_with_format(include_bytes!("../../resources/textures/button_clear_on.png"), None),
             off: Texture2D::from_file_with_format(include_bytes!("../../resources/textures/button_clear_off.png"), None)
         });
-        r.buttons.insert(Buttons::Ai, ButtonTextures{
+        self.buttons.insert(Buttons::Ai, ButtonTextures{
             on: Texture2D::from_file_with_format(include_bytes!("../../resources/textures/button_ai_on.png"), None),
             off: Texture2D::from_file_with_format(include_bytes!("../../resources/textures/button_ai_off.png"), None)
         });
 
-        r.player = Texture2D::from_file_with_format(include_bytes!("../../resources/textures/rabbit.png"), None);
-        return r;
+        self.player = Texture2D::from_file_with_format(include_bytes!("../../resources/textures/rabbit.png"), None);
     }
 
     pub fn get_platform_texture(&self, d: &Difficulty) -> &Texture2D {
@@ -164,5 +180,36 @@ impl Resources {
 
     pub fn get_font(&self) -> &Font {
         &self.font
+    }
+
+    pub fn load_sounds(&mut self) {
+        self.sounds.insert(Sounds::Background, 
+            Sound::load(&self.sounds_context, include_bytes!("../../resources/sounds/background.wav")));
+        self.sounds.insert(Sounds::Start, 
+            Sound::load(&self.sounds_context, include_bytes!("../../resources/sounds/start.wav")));
+        self.sounds.insert(Sounds::Death, 
+            Sound::load(&self.sounds_context, include_bytes!("../../resources/sounds/death.wav")));
+        self.sounds.insert(Sounds::Hit, 
+            Sound::load(&self.sounds_context, include_bytes!("../../resources/sounds/hit.wav")));
+        self.sounds.insert(Sounds::Thousand, 
+            Sound::load(&self.sounds_context, include_bytes!("../../resources/sounds/thousand.wav")));
+    }
+
+    pub fn play_sound_once(&self, s: &Sounds) {
+        self.sounds[s].play(&self.sounds_context, quad_snd::PlaySoundParams{
+            looped: false,
+            volume: 0.3,
+        });
+    }
+
+    pub fn play_background(&self) -> Playback {
+        self.sounds[&Sounds::Background].play(&self.sounds_context, quad_snd::PlaySoundParams{
+            looped: true,
+            volume: 0.3,
+        })
+    }
+
+    pub fn stop_background(&self, p: Playback) {
+        p.stop(&self.sounds_context);
     }
 }

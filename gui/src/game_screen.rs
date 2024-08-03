@@ -3,8 +3,9 @@ use game_logic::{Difficulty, GameState, MoveDirection, SCREEN_HEIGHT, SCREEN_WEI
 
 use crate::rand_gen::RandGen;
 
-use super::resources::{Resources, Backgrounds, Labels};
+use super::resources::{Resources, Backgrounds, Labels, Sounds};
 use super::square_screen::FixedRatioScreen;
+use super::options::Options;
 
 use macroquad::prelude::*;
 
@@ -31,27 +32,31 @@ pub struct GameScreen<'a>
     nick_name: &'a String,
     best_scores: &'a [usize],
     show_1000: f64,
-    pause_button: (&'a Texture2D, f32, f32)
+    pause_button: (&'a Texture2D, f32, f32),
+    is_sounds_on: bool,
 }
 
 impl<'a> GameScreen<'a> {
-    pub fn new(resources: &'a Resources, difficulty: Difficulty, nick_name: &'a String, scores: &'a [usize]) -> Self {
+    pub fn new(resources: &'a Resources, options: &'a Options, scores: &'a [usize]) -> Self {
         let size_params = FixedRatioScreen::new(SCREEN_WEIGHT / SCREEN_HEIGHT);
         let (texture_pause_button, x_to_y) = resources.get_label(&Labels::PauseButton);
         let w_pause_button = SCREEN_WEIGHT * 0.08;
         let h_pause_button = w_pause_button / x_to_y;
 
-        GameScreen {
-            game_engine: GameState::new(RandGen{}, difficulty),
+        let gs = GameScreen {
+            game_engine: GameState::new(RandGen{}, options.difficulty),
+            nick_name: &options.nickname,
+            is_sounds_on: options.sounds_on,
             size_params,
             resources,
             state: State::Running,
-            nick_name,
             state_duration: 0.0,
             best_scores: scores,
             show_1000: -1.0,
-            pause_button: (texture_pause_button, w_pause_button, h_pause_button)
-        }
+            pause_button: (texture_pause_button, w_pause_button, h_pause_button),
+        };
+        gs.play_sound(&Sounds::Start);
+        gs
     }
 
     pub fn update_size(&mut self) {
@@ -83,8 +88,12 @@ impl<'a> GameScreen<'a> {
         match self.state {
             State::Running => {
                 self.update_1000(dt);
-                let is_game_over = self.game_engine.next_step(dt as f32);
-                if is_game_over {
+                let step_res = self.game_engine.next_step(dt as f32);
+                if step_res.hit {
+                    self.play_sound(&Sounds::Hit)
+                }
+                if step_res.game_over {
+                    self.play_sound(&Sounds::Death);
                     self.change_state(State::ShowGameOver); 
                 }
             },
@@ -111,6 +120,9 @@ impl<'a> GameScreen<'a> {
     fn update_1000(&mut self, dt: f64) {
         let score = self.get_score();
         if (score % 1000 < 17) && (score > 17) {
+            if self.show_1000 == -1.0 {
+                self.play_sound(&Sounds::Thousand);
+            }
             self.show_1000 = dt;
         } else if self.show_1000 > 0.0 {
             self.show_1000 += dt;
@@ -356,6 +368,12 @@ impl<'a> GameScreen<'a> {
         }
         self.state_duration = 0.0;
         self.state = state;
+    }
+
+    fn play_sound(&self, sound: &Sounds) {
+        if self.is_sounds_on {
+            self.resources.play_sound_once(sound);
+        }
     }
 }
 
