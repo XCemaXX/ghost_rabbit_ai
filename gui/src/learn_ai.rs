@@ -63,7 +63,7 @@ impl AiPlayer {
             let inputs_ai = generate_inputs_for_ai(&game_engine);
             let move_direction = get_next_move_by_ai(&self.brain, inputs_ai);
             game_engine.move_player_by_x(DT, move_direction);
-            let is_game_over = game_engine.next_step(DT);
+            let is_game_over = game_engine.next_step(DT).game_over;
             if is_game_over {
                 break;
             }

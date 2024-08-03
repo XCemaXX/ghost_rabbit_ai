@@ -36,7 +36,10 @@ pub enum MoveDirection {
     None,
 }
 
-pub type GameOver = bool;
+pub struct StepResult {
+    pub hit: bool,
+    pub game_over: bool,
+}
 
 pub struct GameState<T:GenRandFloat> {
     pub floors: [Floor; MAX_FLOORS],
@@ -70,18 +73,19 @@ impl<T:GenRandFloat> GameState<T> {
         s
     }
 
-    pub fn next_step(&mut self, dt: f32) -> GameOver {
+    pub fn next_step(&mut self, dt: f32) -> StepResult {
         let dt = dt / 2.0;
+        let mut collided = false;
         for _ in 0..2 { // makes collide more precise
             let dy = self.player.move_player(dt);
             self.score += dy;
             self.update_monster(dt);
             self.move_objects_down(dy);
-            self.collide_player_floors();
+            collided |= self.collide_player_floors();
         }
         self.recreate_floors();
 
-        return self.is_game_over();
+        return StepResult{hit: collided, game_over: self.is_game_over()};
     }
 
     pub fn move_player_by_x(&mut self, dt: f32, side: MoveDirection) {
@@ -110,7 +114,7 @@ impl<T:GenRandFloat> GameState<T> {
         (pos < TOP_Y && pos > BOT_Y, pos)
     }
 
-    fn is_game_over(&mut self) -> GameOver {
+    fn is_game_over(&mut self) -> bool {
         if self.player.position.y < BOT_Y 
         || !self.monster.is_dead && collide::is_collide(&self.player.get_bounding_box(), &self.monster.get_bounding_box()) {
             if self.difficulty == Difficulty::Practice {

@@ -9,6 +9,7 @@ mod options;
 
 use macroquad::ui::{hash, root_ui};
 use macroquad::prelude::*;
+use quad_snd::Playback;
 
 use game_logic::{Difficulty, MonsterType};
 use resources::Resources;
@@ -30,16 +31,29 @@ async fn main() {
     let mut record_tables = RecordTables::new();
     let resources = Resources::load_resources();
     let mut options = Options::new();
-
+    let mut background_music: Option<Playback> = None;
     let mut current_screen = ScreenType::MainMenu;
     loop {
         current_screen= match current_screen {
-            ScreenType::Game => { run_game_loop(&resources, &mut record_tables, &options).await },
+            ScreenType::Game => { 
+                if options.music_on && background_music.is_none() {
+                    background_music = Some(resources.play_background());
+                }
+                run_game_loop(&resources, &mut record_tables, &options).await 
+            },
             ScreenType::MainMenu => { run_main_menu_loop(&resources).await },
             ScreenType::RecordsMenu => { run_records_menu_loop(&resources, &mut record_tables).await },
             ScreenType::HtpMenu => { run_htp_menu_loop(&resources).await },
             ScreenType::AboutMenu => { run_about_menu_loop(&resources).await },
-            ScreenType::OptionsMenu => { run_options_menu_loop(&resources, &mut options).await },
+            ScreenType::OptionsMenu => { 
+                let r = run_options_menu_loop(&resources, &mut options).await;
+                if !options.music_on && background_music.is_some() {
+                    resources.stop_background(background_music.take().unwrap())
+                } else if options.music_on && background_music.is_none() {
+                    background_music = Some(resources.play_background());
+                };
+                r
+            },
             ScreenType::GameAi => { run_ai_game_loop(&resources, &mut record_tables, &options).await }
         };
     }
@@ -99,7 +113,7 @@ async fn run_game_loop(resources: &Resources, record_tables: &mut RecordTables, 
     let mut last_update = get_time();
     let difficulty = options.difficulty;
     let record_table = record_tables.get_table(&difficulty);
-    let mut game_loop = game_screen::GameScreen::new(&resources, difficulty, &options.nickname, &record_table.scores);
+    let mut game_loop = game_screen::GameScreen::new(&resources, options, &record_table.scores);
     let score = loop {
         //clear_background(LIGHTGRAY);
         let lu = get_time();
@@ -136,7 +150,7 @@ async fn run_ai_game_loop(resources: &Resources, record_tables: &mut RecordTable
     let ai_player = learn_ai(difficulty);
     let mut last_update = get_time();
     let record_table = record_tables.get_table(&difficulty);
-    let mut game_loop = game_screen::GameScreen::new(&resources, difficulty, &options.nickname, &record_table.scores);
+    let mut game_loop = game_screen::GameScreen::new(&resources, options, &record_table.scores);
     loop {
         let lu = get_time();
         let dt = lu - last_update;
