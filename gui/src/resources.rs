@@ -80,14 +80,14 @@ impl Resources {
     }
 
     fn load_textures(&mut self) {
-        self.platforms.insert(Difficulty::Practice, Texture2D::from_file_with_format(include_bytes!("../../resources/textures/floor_practice.png"), None));
-        self.platforms.insert(Difficulty::Normal, Texture2D::from_file_with_format(include_bytes!("../../resources/textures/floor_medium.png"), None));
-        self.platforms.insert(Difficulty::Unreal, Texture2D::from_file_with_format(include_bytes!("../../resources/textures/floor_hard.png"), None));
-
         self.monsters.insert(MonsterType::Mummy, Texture2D::from_file_with_format(include_bytes!("../../resources/textures/monster_mummy.png"), None));
         self.monsters.insert(MonsterType::Jason, Texture2D::from_file_with_format(include_bytes!("../../resources/textures/monster_jason.png"), None));
         self.monsters.insert(MonsterType::Vampire, Texture2D::from_file_with_format(include_bytes!("../../resources/textures/monster_vampire.png"), None));
         self.monsters.insert(MonsterType::Frankenstein, Texture2D::from_file_with_format(include_bytes!("../../resources/textures/monster_frankenstein.png"), None));
+
+        self.platforms.insert(Difficulty::Normal, Texture2D::from_file_with_format(include_bytes!("../../resources/textures/floor_medium.png"), None));
+        self.platforms.insert(Difficulty::Practice, Texture2D::from_file_with_format(include_bytes!("../../resources/textures/floor_practice.png"), None));
+        self.platforms.insert(Difficulty::Unreal, Texture2D::from_file_with_format(include_bytes!("../../resources/textures/floor_hard.png"), None));
 
         self.backgrounds.insert(Backgrounds::Game, Texture2D::from_file_with_format(include_bytes!("../../resources/textures/background_game.png"), None));
         self.backgrounds.insert(Backgrounds::MainMenu, Texture2D::from_file_with_format(include_bytes!("../../resources/textures/background_main.png"), None));
