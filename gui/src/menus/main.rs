@@ -47,7 +47,9 @@ impl MainMenu<'_> {
         let pressed_keys = get_keys_down();
 
         if self.newgame_button.draw(&self.menu.size_params) 
-            || pressed_keys.contains(&KeyCode::Space) || pressed_keys.contains(&KeyCode::Key1)
+            || pressed_keys.contains(&KeyCode::Space) 
+            || pressed_keys.contains(&KeyCode::Enter)
+            || pressed_keys.contains(&KeyCode::Key1)
         {
             ScreenType::Game
         } else if self.options_button.draw(&self.menu.size_params) || pressed_keys.contains(&KeyCode::Key2) {

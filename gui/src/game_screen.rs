@@ -32,28 +32,23 @@ pub struct GameScreen<'a>
     nick_name: &'a String,
     best_scores: &'a [usize],
     show_1000: f64,
-    pause_button: (&'a Texture2D, f32, f32),
+    buttons: Buttons<'a>,
     is_sounds_on: bool,
 }
 
 impl<'a> GameScreen<'a> {
     pub fn new(resources: &'a Resources, options: &'a Options, scores: &'a [usize]) -> Self {
-        let size_params = FixedRatioScreen::new(SCREEN_WEIGHT / SCREEN_HEIGHT);
-        let (texture_pause_button, x_to_y) = resources.get_label(&Labels::PauseButton);
-        let w_pause_button = SCREEN_WEIGHT * 0.08;
-        let h_pause_button = w_pause_button / x_to_y;
-
         let gs = GameScreen {
             game_engine: GameState::new(RandGen{}, options.difficulty),
             nick_name: &options.nickname,
             is_sounds_on: options.sounds_on,
-            size_params,
+            size_params: FixedRatioScreen::new(SCREEN_WEIGHT / SCREEN_HEIGHT),
             resources,
             state: State::Running,
             state_duration: 0.0,
             best_scores: scores,
             show_1000: -1.0,
-            pause_button: (texture_pause_button, w_pause_button, h_pause_button),
+            buttons: Buttons::new(resources),
         };
         gs.play_sound(&Sounds::Start);
         gs
@@ -68,12 +63,7 @@ impl<'a> GameScreen<'a> {
             return;
         }
         self.update_pause();
-        for key in get_keys_down() {
-            match key {
-                KeyCode::Escape => { self.change_state(State::Finished); }
-                _ => { },
-            }
-        }
+        self.update_exit();
     }
 
     pub fn move_player(&mut self, dt: f64, move_direction: MoveDirection) {
@@ -143,7 +133,7 @@ impl<'a> GameScreen<'a> {
     pub fn draw(&self) {
         self.draw_background();
         self.draw_records();
-        self.draw_pause_button();
+        self.draw_buttons();
         self.draw_floors();
         self.draw_player();
         self.draw_monster();
@@ -328,27 +318,14 @@ impl<'a> GameScreen<'a> {
         }
     }
 
-    fn draw_pause_button(&self) {
-        let (texture, w, h) = self.pause_button;
-        let r = self.size_params.rectangle_transform(
-            (SCREEN_WEIGHT / 2.0 - w / 2.0 * 1.5, - SCREEN_HEIGHT / 2.0 + h / 2.0 * 1.5), (w, h));
-        
-        draw_texture_ex(
-            texture, r.x, r.y, WHITE,
-            DrawTextureParams {
-                dest_size: Some(vec2(r.w, r.h)),
-                ..Default::default()
-            },
-        );
+    fn draw_buttons(&self) {
+        self.buttons.draw_exit_button(&self.size_params);
+        self.buttons.draw_pause_button(&self.size_params);
     }
 
     fn update_pause(&mut self) {
-        let (_, w, h) = self.pause_button;
-        let r = self.size_params.rectangle_transform(
-            (SCREEN_WEIGHT / 2.0 - w / 2.0 * 1.5, - SCREEN_HEIGHT / 2.0 + h / 2.0 * 1.5), (w, h));
-
-        let mut change_state = (self.state == State::Paused || is_cursor_in(&r)) 
-            && is_mouse_button_pressed(MouseButton::Left);
+        let mut change_state = self.buttons.is_pause_button_pressed(&self.size_params) 
+            || self.state == State::Paused && is_mouse_button_pressed(MouseButton::Left);
         for key in get_keys_pressed() {
             if key == KeyCode::P {
                 change_state = true;
@@ -359,6 +336,19 @@ impl<'a> GameScreen<'a> {
             self.change_state(
                 if self.state == State::Paused { State::Running } else { State::Paused }
             );
+        }
+    }
+
+    fn update_exit(&mut self) {
+        let mut change_state = self.buttons.is_exit_button_pressed(&self.size_params);
+        for key in get_keys_down() {
+            match key {
+                KeyCode::Escape => { change_state = true; }
+                _ => { },
+            }
+        }
+        if change_state {
+            self.change_state(State::Finished);
         }
     }
 
@@ -377,10 +367,67 @@ impl<'a> GameScreen<'a> {
     }
 }
 
-fn is_cursor_in(r: &Rect) -> bool {
-    let (x, y) = mouse_position();
-    y > r.y && y < r.y + r.h &&
-    x > r.x && x < r.x + r.w 
+struct Buttons<'a> {
+    pause: &'a Texture2D,
+    exit: &'a Texture2D,
+    pub w: f32,
+    pub h: f32,
+}
+
+impl<'a> Buttons<'a> {
+    fn new(resources: &'a Resources) -> Self {
+        let (pause_button, x_to_y) = resources.get_label(&Labels::PauseButton);
+        let (exit, _) = resources.get_label(&Labels::ExitButton);
+        let w = SCREEN_WEIGHT * 0.08;
+        let h = w / x_to_y;
+        Self { pause: pause_button, exit, w, h }
+    }
+
+    fn draw_pause_button(&self, size_params: &FixedRatioScreen) {
+        let r = self.get_pause_button_rect(size_params);
+        Self::draw(r, &self.pause);
+    }
+
+    fn draw_exit_button(&self, size_params: &FixedRatioScreen) {
+        let r = self.get_exit_button_rect(size_params);
+        Self::draw(r, &self.exit);
+    }
+
+    fn get_pause_button_rect(&self, size_params: &FixedRatioScreen) -> Rect {
+        size_params.rectangle_transform(
+            (SCREEN_WEIGHT / 2.0 - self.w / 2.0 * 1.5, -SCREEN_HEIGHT / 2.0 + self.h / 2.0 * 1.5), (self.w, self.h))
+    }
+
+    fn get_exit_button_rect(&self, size_params: &FixedRatioScreen) -> Rect {
+        size_params.rectangle_transform(
+            (-SCREEN_WEIGHT / 2.0 + self.w / 2.0 * 1.5, -SCREEN_HEIGHT / 2.0 + self.h / 2.0 * 1.5), (self.w, self.h))
+    }
+
+    fn draw(r: Rect, t: &Texture2D) {
+        draw_texture_ex(
+            &t, r.x, r.y, WHITE,
+            DrawTextureParams {
+                dest_size: Some(vec2(r.w, r.h)),
+                ..Default::default()
+            },
+        );
+    }
+
+    fn is_pause_button_pressed(&self, size_params: &FixedRatioScreen) -> bool {
+        let r = self.get_pause_button_rect(size_params);
+        Self::is_cursor_in(&r) && is_mouse_button_pressed(MouseButton::Left)
+    }
+
+    fn is_exit_button_pressed(&self, size_params: &FixedRatioScreen) -> bool {
+        let r = self.get_exit_button_rect(size_params);
+        Self::is_cursor_in(&r) && is_mouse_button_pressed(MouseButton::Left)
+    }
+
+    fn is_cursor_in(r: &Rect) -> bool {
+        let (x, y) = mouse_position();
+        y > r.y && y < r.y + r.h &&
+        x > r.x && x < r.x + r.w 
+    }
 }
 
 pub fn get_move_direction_by_input() -> MoveDirection {

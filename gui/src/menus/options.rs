@@ -2,7 +2,7 @@
 
 use game_logic::Difficulty;
 use macroquad::prelude::*;
-use macroquad::ui::{hash, root_ui, Skin};
+use macroquad::ui::{root_ui, Skin};
 
 use super::Menu;
 use super::{Resources, Backgrounds};
@@ -13,7 +13,7 @@ use crate::resources::{Buttons, Labels};
 
 use super::controls::*;
 
-const MAX_NICKNAME_LEN: usize = 10;
+const MAX_NICKNAME_LEN: usize = 9;
 
 pub struct OptionsMenu<'a> {
     menu: Menu<'a>,
@@ -94,10 +94,11 @@ impl OptionsMenu<'_> {
         let r = self.size_params.rectangle_transform(
             (SCREEN_WEIGHT / 2.0 - w / 2.0, SCREEN_HEIGHT / 4.5), 
             (w, SCREEN_HEIGHT / 15.0));
-        root_ui().group(hash!(), (r.x, r.y).into(), |_| {});
-        root_ui().group(hash!(), (r.x, r.h).into(), |_| {});
+        root_ui().group(23, (r.x, r.y).into(), |_| {});
+        root_ui().group(123, (r.x, r.h).into(), |_| {});
         root_ui().same_line(0.);
-        root_ui().editbox(2, (r.w, r.h).into() , self.nickname);
+        // 0.9 - fix bug: nickname on new line
+        root_ui().editbox(1234, (r.w * 0.9, r.h).into() , self.nickname);
         if self.nickname.len() > MAX_NICKNAME_LEN {
             *self.nickname = self.nickname[0..MAX_NICKNAME_LEN].to_string();
         }
