@@ -1,0 +1,4 @@
+C:\work\les1\firstproject\firstprojectContent\obj\x86\Debug\ResolveAssemblyReference.cache
+C:\work\les1\firstproject\firstprojectContent\obj\x86\Debug\Sound\Sound.xml
+C:\work\ppc\firstproject\firstprojectContent\obj\x86\Debug\ResolveAssemblyReference.cache
+C:\work\ppc\firstproject\firstprojectContent\obj\x86\Debug\Sound\Sound.xml
