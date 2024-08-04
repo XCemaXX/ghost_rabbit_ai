@@ -53,19 +53,13 @@ pub struct GameState<T:GenRandFloat> {
 
 impl<T:GenRandFloat> GameState<T> {
     pub fn new(rng: T, difficulty: Difficulty) -> Self {
-        let monster_recreation_timer = if difficulty == Difficulty::Unreal {
-            0.0
-        } else {
-            150.0 / 60.0
-        };
-
         let mut s = Self {
             floors: [(); MAX_FLOORS].map(|_| floor::Floor::new(Vec2{ x: CENTER, y: BOT_Y - 1.0 })),
             player: Player::new( Vec2{ x: CENTER, y: CENTER }, CENTER),
             monster: Monster::new_dead(),
             rng,
             difficulty,
-            monster_recreation_timer,
+            monster_recreation_timer: 100.0 / 60.0,
             score: 0.0,
         };
         s.create_first_floor_under_player();
@@ -173,8 +167,17 @@ impl<T:GenRandFloat> GameState<T> {
                 self.rng.gen_range((2.0 * SPEED_CONSTANT)..=(5.5 * SPEED_CONSTANT))
             };
             self.monster = Monster::new(&mut self.rng, &self.player.position, speed_abs);
-            // todo recalc rectreation_timer based on score
+            self.recalc_reareation_timer();
         }
+    }
+
+    fn recalc_reareation_timer(&mut self) {
+        let score = self.get_score();
+        self.monster_recreation_timer = if self.difficulty == Difficulty::Unreal || score > 10000 {
+            0.0
+        } else {
+            (-0.015 * score as f32 + 150.0) / 60.0
+        };
     }
 }
 

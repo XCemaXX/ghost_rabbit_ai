@@ -7,7 +7,6 @@ mod rand_gen;
 mod learn_ai;
 mod options;
 
-use macroquad::ui::{hash, root_ui};
 use macroquad::prelude::*;
 use quad_snd::Playback;
 
@@ -121,7 +120,6 @@ async fn run_game_loop(resources: &Resources, record_tables: &mut RecordTables, 
         last_update = lu;
 
         game_loop.update_size();
-        let (mouse_x, mouse_y) = mouse_position();
 
         game_loop.update_game_state_by_input();
         let move_direction = game_screen::get_move_direction_by_input();
@@ -130,11 +128,6 @@ async fn run_game_loop(resources: &Resources, record_tables: &mut RecordTables, 
         if game_loop.is_game_over() {
             break game_loop.get_score();
         }
-        
-        root_ui().window(hash!(), Vec2::new(10., 10.), Vec2::new(280., 120.), |ui| {
-            ui.label(None, &format!("fps: {:.3}", 1.0 / dt));
-            ui.label(None, &format!("Mouse {:.3} {:.3}", mouse_x, mouse_y));
-        });
         game_loop.draw();
         next_frame().await
     };
