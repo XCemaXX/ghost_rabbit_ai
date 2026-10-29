@@ -3,7 +3,8 @@ use macroquad::prelude::*;
 use crate::resources::{ButtonTextures, Resources};
 use game_logic::{SCREEN_HEIGHT, SCREEN_WEIGHT};
 
-use super::FixedRatioScreen;
+use crate::draw::{centered_rect, draw_world_texture};
+use crate::letterbox::Letterbox;
 
 pub struct CheckBox<'a> {
     texture_on: &'a Texture2D,
@@ -30,10 +31,10 @@ impl CheckBox<'_> {
         }
     }
 
-    pub fn draw(&mut self, size_params: &FixedRatioScreen) {
-        let r = size_params.rectangle_transform(self.pos, self.size);
+    pub fn draw(&mut self, letterbox: &Letterbox) {
+        let r = centered_rect(self.pos, self.size);
 
-        if is_mouse_button_pressed(MouseButton::Left) && is_cursor_in(&r) {
+        if is_mouse_button_pressed(MouseButton::Left) && is_cursor_in(letterbox, r) {
             *self.state = !(*self.state);
         }
 
@@ -42,16 +43,7 @@ impl CheckBox<'_> {
         } else {
             self.texture_off
         };
-        draw_texture_ex(
-            texture,
-            r.x,
-            r.y,
-            WHITE,
-            DrawTextureParams {
-                dest_size: Some(vec2(r.w, r.h)),
-                ..Default::default()
-            },
-        );
+        draw_world_texture(letterbox, texture, r);
     }
 }
 
@@ -77,26 +69,17 @@ impl Button3Way<'_> {
         }
     }
 
-    pub fn draw(&mut self, size_params: &FixedRatioScreen) -> usize {
+    pub fn draw(&mut self, letterbox: &Letterbox) -> usize {
         let h = self.width / self.textures[self.state].1;
-        let r = size_params.rectangle_transform(self.pos, (self.width, h));
+        let r = centered_rect(self.pos, (self.width, h));
 
-        if is_mouse_button_pressed(MouseButton::Left) && is_cursor_in(&r) {
+        if is_mouse_button_pressed(MouseButton::Left) && is_cursor_in(letterbox, r) {
             self.state = (self.state + 1) % 3;
         }
 
         let h = self.width / self.textures[self.state].1;
-        let r = size_params.rectangle_transform(self.pos, (self.width, h));
-        draw_texture_ex(
-            self.textures[self.state].0,
-            r.x,
-            r.y,
-            WHITE,
-            DrawTextureParams {
-                dest_size: Some(vec2(r.w, r.h)),
-                ..Default::default()
-            },
-        );
+        let r = centered_rect(self.pos, (self.width, h));
+        draw_world_texture(letterbox, self.textures[self.state].0, r);
         self.state
     }
 }
@@ -123,10 +106,10 @@ impl Button<'_> {
         }
     }
 
-    pub fn draw(&mut self, size_params: &FixedRatioScreen) -> bool {
-        let r = size_params.rectangle_transform(self.pos, self.size);
+    pub fn draw(&mut self, letterbox: &Letterbox) -> bool {
+        let r = centered_rect(self.pos, self.size);
 
-        let texture = if is_cursor_in(&r) {
+        let texture = if is_cursor_in(letterbox, r) {
             if is_mouse_button_pressed(MouseButton::Left) {
                 return true;
             }
@@ -134,23 +117,14 @@ impl Button<'_> {
         } else {
             self.texture
         };
-        draw_texture_ex(
-            texture,
-            r.x,
-            r.y,
-            WHITE,
-            DrawTextureParams {
-                dest_size: Some(vec2(r.w, r.h)),
-                ..Default::default()
-            },
-        );
+        draw_world_texture(letterbox, texture, r);
         false
     }
 }
 
-fn is_cursor_in(r: &Rect) -> bool {
-    let (x, y) = mouse_position();
-    y > r.y && y < r.y + r.h && x > r.x && x < r.x + r.w
+/// `r` is in world units. The cursor on a bar is never inside.
+fn is_cursor_in(letterbox: &Letterbox, r: Rect) -> bool {
+    letterbox.mouse_world().is_some_and(|p| r.contains(p))
 }
 
 fn get_button<'a>(

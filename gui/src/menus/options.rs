@@ -1,11 +1,12 @@
 use game_logic::Difficulty;
 use macroquad::prelude::*;
-use macroquad::ui::{Skin, root_ui};
+use macroquad::ui::{Skin, root_ui, widgets::Editbox};
 
 use super::Menu;
 use super::Options;
 use super::{Backgrounds, Resources};
 use super::{SCREEN_HEIGHT, SCREEN_WEIGHT};
+use crate::draw::centered_rect;
 use crate::resources::{Buttons, Labels};
 use std::ops::{Deref, DerefMut};
 
@@ -71,20 +72,21 @@ impl OptionsMenu<'_> {
     }
 
     pub fn draw_update(&mut self) -> bool {
-        self.update_size();
-        self.draw_background();
+        self.menu.begin_frame();
         self.draw_editbox();
-        self.music_on.draw(&self.menu.size_params);
-        self.sounds_on.draw(&self.menu.size_params);
-        *self.difficulty =
-            Difficulty::from_usize(self.difficulty_button.draw(&self.menu.size_params));
-        self.size_params.draw_border();
+        let letterbox = &self.menu.letterbox;
+        self.music_on.draw(letterbox);
+        self.sounds_on.draw(letterbox);
+        *self.difficulty = Difficulty::from_usize(self.difficulty_button.draw(letterbox));
 
         return macroquad::input::get_keys_down().contains(&macroquad::input::KeyCode::Escape)
-            || self.back_button.draw(&self.menu.size_params);
+            || self.back_button.draw(letterbox);
     }
 
     fn draw_editbox(&mut self) {
+        let letterbox = &self.menu.letterbox;
+        // macroquad ui has no font scale: the pixel size must follow the window.
+        let font_size = letterbox.len_to_screen(SCREEN_WEIGHT * 65.0 / 800.0) as u16;
         let transparent_color = Color::from_rgba(0, 0, 0, 0);
         let lu = get_time();
         let dt = lu - self.last_resize;
@@ -98,32 +100,27 @@ impl OptionsMenu<'_> {
                 //.font(self.resources.get_font())
                 .font(include_bytes!("../../../resources/fonts/Unitblock.ttf"))
                 .unwrap()
-                .font_size((65.0 * self.size_params.font_scale) as u16)
-                .color(transparent_color)
-                .color_clicked(transparent_color)
-                .build();
-            let group_style = root_ui()
-                .style_builder()
+                .font_size(font_size)
                 .color(transparent_color)
                 .color_clicked(transparent_color)
                 .build();
             let skin = Skin {
                 editbox_style,
-                group_style,
                 ..root_ui().default_skin()
             };
             root_ui().push_skin(&skin);
         }
         let w = SCREEN_WEIGHT / 2.0;
-        let r = self.size_params.rectangle_transform(
+        let r = letterbox.rect_to_screen(centered_rect(
             (SCREEN_WEIGHT / 2.0 - w / 2.0, SCREEN_HEIGHT / 4.5),
             (w, SCREEN_HEIGHT / 15.0),
-        );
-        root_ui().group(23, (r.x, r.y).into(), |_| {});
-        root_ui().group(123, (r.x, r.h).into(), |_| {});
-        root_ui().same_line(0.);
-        // 0.9 - fix bug: nickname on new line
-        root_ui().editbox(1234, (r.w * 0.9, r.h).into(), self.nickname);
+        ));
+        // Explicit position: the ui layout cursor adds its own margins.
+        Editbox::new(1234, vec2(r.w, r.h))
+            .position(vec2(r.x, r.y))
+            .margin(vec2(2.0, ((r.h - font_size as f32) / 2.0).max(0.0)))
+            .multiline(false)
+            .ui(&mut root_ui(), self.nickname);
         if self.nickname.len() > MAX_NICKNAME_LEN {
             *self.nickname = self.nickname[0..MAX_NICKNAME_LEN].to_string();
         }

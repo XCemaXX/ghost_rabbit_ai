@@ -4,6 +4,7 @@ use super::Menu;
 use super::SCREEN_WEIGHT;
 use super::controls::{Button, create_button};
 use super::{Backgrounds, RecordTables, Resources};
+use crate::draw::draw_world_text;
 use crate::resources::Buttons;
 use std::ops::{Deref, DerefMut};
 
@@ -30,15 +31,14 @@ impl RecordsMenu<'_> {
     }
 
     pub fn draw_update(&mut self) -> bool {
-        self.update_size();
-        self.draw_background();
+        self.menu.begin_frame();
         self.draw_records();
-        self.size_params.draw_border();
-        if self.clear_button.draw(&self.menu.size_params) {
+        let letterbox = &self.menu.letterbox;
+        if self.clear_button.draw(letterbox) {
             self.record_tables.set_default();
         }
         return macroquad::input::get_keys_down().contains(&macroquad::input::KeyCode::Escape)
-            || self.back_button.draw(&self.menu.size_params);
+            || self.back_button.draw(letterbox);
     }
 
     fn draw_records(&self) {
@@ -66,37 +66,24 @@ impl RecordsMenu<'_> {
     }
 
     fn draw_nick(&self, name: &String, score: usize, pos: usize, color: Color, start_pos: f32) {
-        let coords = self.size_params.get_pixel_coords(
-            -SCREEN_WEIGHT / 2.0 * 0.7,
-            start_pos - 0.10 * (pos + 1) as f32,
+        let letterbox = &self.menu.letterbox;
+        let y = start_pos - 0.10 * (pos + 1) as f32;
+        let font = self.resources.get_font();
+        let name = format!("{}. {}", pos + 1, name);
+        draw_world_text(
+            letterbox,
+            &name,
+            (-SCREEN_WEIGHT / 2.0 * 0.7, y),
+            color,
+            font,
         );
-        draw_text_ex(
-            &format!("{}. {}", pos + 1, name),
-            coords.0,
-            coords.1,
-            TextParams {
-                font_size: 50,
-                font_scale: self.size_params.font_scale,
-                color: color,
-                font: Some(self.resources.get_font()),
-                ..Default::default()
-            },
-        );
-        let coords = self.size_params.get_pixel_coords(
-            SCREEN_WEIGHT / 2.0 * 0.4,
-            start_pos - 0.10 * (pos + 1) as f32,
-        );
-        draw_text_ex(
-            &format!("{}", score),
-            coords.0,
-            coords.1,
-            TextParams {
-                font_size: 50,
-                font_scale: self.size_params.font_scale,
-                color: color,
-                font: Some(self.resources.get_font()),
-                ..Default::default()
-            },
+        let score = score.to_string();
+        draw_world_text(
+            letterbox,
+            &score,
+            (SCREEN_WEIGHT / 2.0 * 0.4, y),
+            color,
+            font,
         );
     }
 }
