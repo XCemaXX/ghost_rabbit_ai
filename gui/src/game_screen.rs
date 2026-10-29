@@ -17,6 +17,12 @@ const GAME_OVER_DURATION_SEC: f64 = 1.3;
 const WIN_DURATION_SEC: f64 = 1.0;
 const P1000_DURATION_SEC: f64 = 1.5;
 
+// Long steps break jumps and floor collisions, so a frame is split into short ones.
+const MAX_STEP_SEC: f64 = 1.0 / 120.0;
+const MAX_FRAME_SEC: f64 = 0.25;
+// A longer frame means the tab was hidden.
+const AUTO_PAUSE_FRAME_SEC: f64 = 0.5;
+
 #[derive(PartialEq, Eq)]
 enum State {
     Running,
@@ -70,14 +76,26 @@ impl<'a> GameScreen<'a> {
         self.update_exit();
     }
 
-    pub fn move_player(&mut self, dt: f64, move_direction: MoveDirection) {
+    /// Advances the game by one frame of `frame_dt` seconds.
+    pub fn advance(&mut self, frame_dt: f64, move_direction: MoveDirection) {
+        if frame_dt > AUTO_PAUSE_FRAME_SEC && self.state == State::Running {
+            self.change_state(State::Paused);
+        }
+        let (steps, dt) = split_frame(frame_dt);
+        for _ in 0..steps {
+            self.move_player(dt, move_direction);
+            self.next_step(dt);
+        }
+    }
+
+    fn move_player(&mut self, dt: f64, move_direction: MoveDirection) {
         if self.state != State::Running {
             return;
         }
         self.game_engine.move_player_by_x(dt as f32, move_direction);
     }
 
-    pub fn next_step(&mut self, dt: f64) {
+    fn next_step(&mut self, dt: f64) {
         self.state_duration += dt;
         match self.state {
             State::Running => {
@@ -397,11 +415,39 @@ impl<'a> Buttons<'a> {
     }
 }
 
+/// Equal steps, none longer than `MAX_STEP_SEC`.
+fn split_frame(frame_dt: f64) -> (u32, f64) {
+    let frame_dt = frame_dt.min(MAX_FRAME_SEC);
+    let steps = (frame_dt / MAX_STEP_SEC).ceil().max(1.0) as u32;
+    (steps, frame_dt / steps as f64)
+}
+
 /// Click point in world units; a click on the bars is ignored.
 fn clicked_at(letterbox: &Letterbox) -> Option<Vec2> {
     if is_mouse_button_pressed(MouseButton::Left) {
         letterbox.mouse_world()
     } else {
         None
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn split_frame_keeps_steps_short() {
+        for fps in [4.0, 10.0, 60.0, 144.0, 240.0] {
+            let (steps, dt) = split_frame(1.0 / fps);
+            assert!(dt <= MAX_STEP_SEC + 1e-12);
+            assert!((steps as f64 * dt - 1.0 / fps).abs() < 1e-9);
+        }
+        assert_eq!(split_frame(1.0 / 240.0).0, 1);
+    }
+
+    #[test]
+    fn split_frame_caps_long_frames() {
+        let (steps, dt) = split_frame(30.0);
+        assert!((steps as f64 * dt - MAX_FRAME_SEC).abs() < 1e-9);
     }
 }

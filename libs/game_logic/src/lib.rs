@@ -30,7 +30,7 @@ pub enum Difficulty {
     Unreal,
 }
 
-#[derive(PartialEq)]
+#[derive(Clone, Copy, PartialEq)]
 pub enum MoveDirection {
     Left,
     Right,
