@@ -1,8 +1,8 @@
 use super::Menu;
-use super::{Resources, Backgrounds};
-use std::ops::{Deref, DerefMut};
-use super::controls::{create_button, Button};
+use super::controls::{Button, create_button};
+use super::{Backgrounds, Resources};
 use crate::resources::Buttons;
+use std::ops::{Deref, DerefMut};
 
 pub struct HowToPlayMenu<'a> {
     menu: Menu<'a>,
@@ -21,8 +21,8 @@ impl HowToPlayMenu<'_> {
         self.update_size();
         self.draw_background();
         self.size_params.draw_border();
-        return macroquad::input::get_keys_down().contains(&macroquad::input::KeyCode::Escape) ||
-           self.back_button.draw(&self.menu.size_params)
+        return macroquad::input::get_keys_down().contains(&macroquad::input::KeyCode::Escape)
+            || self.back_button.draw(&self.menu.size_params);
     }
 }
 

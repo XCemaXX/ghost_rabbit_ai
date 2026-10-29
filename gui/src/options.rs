@@ -33,9 +33,9 @@ impl Options {
     pub fn save(&self) {
         let storage = &mut quad_storage::STORAGE.lock().unwrap();
         storage.set("nickname", &self.nickname);
-        let music_on = if self.music_on {"t" } else {"f"};
+        let music_on = if self.music_on { "t" } else { "f" };
         storage.set("music_on", music_on);
-        let sounds_on = if self.sounds_on {"t" } else {"f"};
+        let sounds_on = if self.sounds_on { "t" } else { "f" };
         storage.set("sounds_on", sounds_on);
         storage.set("difficulty", self.difficulty.as_str());
     }

@@ -1,9 +1,9 @@
-use super::primitives::{Vec2, Circle};
 use super::SCREEN_HEIGHT;
+use super::primitives::{Circle, Vec2};
 
 const SECS_TO_JUMP_UP: f32 = 0.6;
 pub const MAX_JUMP_Y: f32 = SCREEN_HEIGHT / 2.0 * 0.9;
-const ACCELERATION: f32 = - MAX_JUMP_Y * 2.0 / SECS_TO_JUMP_UP / SECS_TO_JUMP_UP;
+const ACCELERATION: f32 = -MAX_JUMP_Y * 2.0 / SECS_TO_JUMP_UP / SECS_TO_JUMP_UP;
 const MAX_SPEED: f32 = MAX_JUMP_Y / SECS_TO_JUMP_UP - ACCELERATION * SECS_TO_JUMP_UP / 2.0;
 
 pub struct Player {
@@ -17,9 +17,12 @@ pub struct Player {
 impl Player {
     pub fn new(start_position: Vec2, y_move_limit: f32) -> Self {
         Self {
-            position: Vec2{ x: start_position.x, y: start_position.y },
+            position: Vec2 {
+                x: start_position.x,
+                y: start_position.y,
+            },
             radius: SCREEN_HEIGHT / 32.0 / 2.0,
-            speed: Vec2{ x: 0.0, y: 0.0 },
+            speed: Vec2 { x: 0.0, y: 0.0 },
             acceleration: ACCELERATION,
             y_move_limit,
         }
@@ -48,15 +51,15 @@ impl Player {
         } else {
             self.position.y = new_pos;
             0.0
-        }
+        };
     }
 
     pub fn get_stage(&self) -> usize {
         match self.speed.y {
-            x if ((-MAX_SPEED * 0.15)..(MAX_SPEED * 0.15)).contains(&x) => { 2 },
-            x if ((MAX_SPEED * 0.15)..(MAX_SPEED * 0.9)).contains(&x) => { 1 },
-            x if ((MAX_SPEED * 0.9)..(MAX_SPEED)).contains(&x) => { 0 },
-            _ => { 3 }
+            x if ((-MAX_SPEED * 0.15)..(MAX_SPEED * 0.15)).contains(&x) => 2,
+            x if ((MAX_SPEED * 0.15)..(MAX_SPEED * 0.9)).contains(&x) => 1,
+            x if ((MAX_SPEED * 0.9)..(MAX_SPEED)).contains(&x) => 0,
+            _ => 3,
         }
     }
 }

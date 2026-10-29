@@ -1,4 +1,4 @@
-use super::primitives::{Vec2, Rectangle};
+use super::primitives::{Rectangle, Vec2};
 use super::{SCREEN_HEIGHT, SCREEN_WEIGHT};
 
 const FLOOR_WIDTH: f32 = SCREEN_WEIGHT / 6.3;
@@ -19,10 +19,13 @@ impl Floor {
         }
     }
 
-    pub fn new(position: Vec2) -> Self { 
+    pub fn new(position: Vec2) -> Self {
         Self {
             position,
-            size: Vec2{ x: FLOOR_WIDTH, y: FLOOR_HIGHT}
+            size: Vec2 {
+                x: FLOOR_WIDTH,
+                y: FLOOR_HIGHT,
+            },
         }
     }
 }

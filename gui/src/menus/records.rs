@@ -1,11 +1,11 @@
 use game_logic::Difficulty;
 
 use super::Menu;
-use super::{Resources, Backgrounds, RecordTables};
-use std::ops::{Deref, DerefMut};
-use super::controls::{create_button, Button};
+use super::SCREEN_WEIGHT;
+use super::controls::{Button, create_button};
+use super::{Backgrounds, RecordTables, Resources};
 use crate::resources::Buttons;
-use super::{SCREEN_WEIGHT};
+use std::ops::{Deref, DerefMut};
 
 use macroquad::prelude::*;
 
@@ -17,12 +17,15 @@ pub struct RecordsMenu<'a> {
 }
 
 impl RecordsMenu<'_> {
-    pub fn new<'a>(resources: &'a Resources, record_tables: &'a mut RecordTables) -> RecordsMenu<'a> {
+    pub fn new<'a>(
+        resources: &'a Resources,
+        record_tables: &'a mut RecordTables,
+    ) -> RecordsMenu<'a> {
         RecordsMenu {
             menu: Menu::new(resources, Backgrounds::Records),
             back_button: create_button(&resources, &Buttons::Back, (0.0, -0.8)),
             clear_button: create_button(&resources, &Buttons::ClearRecords, (0.38, -0.63)),
-            record_tables
+            record_tables,
         }
     }
 
@@ -34,28 +37,43 @@ impl RecordsMenu<'_> {
         if self.clear_button.draw(&self.menu.size_params) {
             self.record_tables.set_default();
         }
-        return macroquad::input::get_keys_down().contains(&macroquad::input::KeyCode::Escape) ||
-           self.back_button.draw(&self.menu.size_params)
+        return macroquad::input::get_keys_down().contains(&macroquad::input::KeyCode::Escape)
+            || self.back_button.draw(&self.menu.size_params);
     }
 
     fn draw_records(&self) {
         let record_table = self.record_tables.get_table(&Difficulty::Normal);
         let count = record_table.names.len();
         for i in 0..count {
-            self.draw_nick(&record_table.names[i], record_table.scores[i], count - i - 1, YELLOW, 0.03);
+            self.draw_nick(
+                &record_table.names[i],
+                record_table.scores[i],
+                count - i - 1,
+                YELLOW,
+                0.03,
+            );
         }
         let record_table = self.record_tables.get_table(&Difficulty::Unreal);
         for i in 0..count {
-            self.draw_nick(&record_table.names[i], record_table.scores[i], count - i - 1, RED, 0.67);
+            self.draw_nick(
+                &record_table.names[i],
+                record_table.scores[i],
+                count - i - 1,
+                RED,
+                0.67,
+            );
         }
     }
 
     fn draw_nick(&self, name: &String, score: usize, pos: usize, color: Color, start_pos: f32) {
-        let coords = self.size_params.get_pixel_coords(-SCREEN_WEIGHT / 2.0 * 0.7, 
-            start_pos - 0.10 * (pos + 1) as f32);
+        let coords = self.size_params.get_pixel_coords(
+            -SCREEN_WEIGHT / 2.0 * 0.7,
+            start_pos - 0.10 * (pos + 1) as f32,
+        );
         draw_text_ex(
             &format!("{}. {}", pos + 1, name),
-            coords.0, coords.1,
+            coords.0,
+            coords.1,
             TextParams {
                 font_size: 50,
                 font_scale: self.size_params.font_scale,
@@ -64,11 +82,14 @@ impl RecordsMenu<'_> {
                 ..Default::default()
             },
         );
-        let coords = self.size_params.get_pixel_coords(SCREEN_WEIGHT / 2.0 * 0.4, 
-            start_pos - 0.10 * (pos + 1) as f32);
+        let coords = self.size_params.get_pixel_coords(
+            SCREEN_WEIGHT / 2.0 * 0.4,
+            start_pos - 0.10 * (pos + 1) as f32,
+        );
         draw_text_ex(
             &format!("{}", score),
-            coords.0, coords.1,
+            coords.0,
+            coords.1,
             TextParams {
                 font_size: 50,
                 font_scale: self.size_params.font_scale,

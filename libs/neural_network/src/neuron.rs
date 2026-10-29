@@ -21,9 +21,7 @@ impl Neuron {
     pub fn new<T: GenRandFloat>(rng: &mut T, input_size: usize) -> Self {
         let bias = rng.gen_range(-1.0..=1.0);
 
-        let weights = (0..input_size)
-            .map(|_| rng.gen_range(-1.0..=1.0))
-            .collect();
+        let weights = (0..input_size).map(|_| rng.gen_range(-1.0..=1.0)).collect();
 
         Self { bias, weights }
     }
@@ -33,10 +31,7 @@ impl Neuron {
         let weights = (0..input_size)
             .map(|_| weights.next().expect("Not enough weights"))
             .collect();
-        Self {
-            bias,
-            weights,
-        }
+        Self { bias, weights }
     }
 }
 
@@ -48,9 +43,13 @@ mod tests {
 
         #[test]
         fn returns_propagated_input() {
-            let actual = Neuron{bias:0.1, weights: vec![-0.3, 0.6, 0.9]}.propagate(&[0.5, -0.6, 0.7]);
+            let actual = Neuron {
+                bias: 0.1,
+                weights: vec![-0.3, 0.6, 0.9],
+            }
+            .propagate(&[0.5, -0.6, 0.7]);
             let expected: f32 = 0.1 + (0.5 * -0.3) + (-0.6 * 0.6) + (0.7 * 0.9);
-            
+
             assert!((actual - expected).abs() < f32::EPSILON);
         }
     }

@@ -1,22 +1,22 @@
-mod square_screen;
-mod resources;
 mod game_screen;
-mod menus;
-mod recrord_table;
-mod rand_gen;
 mod learn_ai;
+mod menus;
 mod options;
+mod rand_gen;
+mod recrord_table;
+mod resources;
+mod square_screen;
 
 use macroquad::prelude::*;
 use quad_snd::Playback;
 
 use game_logic::{Difficulty, MonsterType};
-use resources::Resources;
 use menus::ScreenType;
-use recrord_table::RecordTables;
 use options::Options;
+use recrord_table::RecordTables;
+use resources::Resources;
 
-use learn_ai::{generate_inputs_for_ai, learn_ai, get_next_move_by_ai};
+use learn_ai::{generate_inputs_for_ai, get_next_move_by_ai, learn_ai};
 
 fn window_conf() -> Conf {
     Conf {
@@ -33,18 +33,18 @@ async fn main() {
     let mut background_music: Option<Playback> = None;
     let mut current_screen = ScreenType::MainMenu;
     loop {
-        current_screen= match current_screen {
-            ScreenType::Game => { 
+        current_screen = match current_screen {
+            ScreenType::Game => {
                 if options.music_on && background_music.is_none() {
                     background_music = Some(resources.play_background());
                 }
-                run_game_loop(&resources, &mut record_tables, &options).await 
-            },
-            ScreenType::MainMenu => { run_main_menu_loop(&resources).await },
-            ScreenType::RecordsMenu => { run_records_menu_loop(&resources, &mut record_tables).await },
-            ScreenType::HtpMenu => { run_htp_menu_loop(&resources).await },
-            ScreenType::AboutMenu => { run_about_menu_loop(&resources).await },
-            ScreenType::OptionsMenu => { 
+                run_game_loop(&resources, &mut record_tables, &options).await
+            }
+            ScreenType::MainMenu => run_main_menu_loop(&resources).await,
+            ScreenType::RecordsMenu => run_records_menu_loop(&resources, &mut record_tables).await,
+            ScreenType::HtpMenu => run_htp_menu_loop(&resources).await,
+            ScreenType::AboutMenu => run_about_menu_loop(&resources).await,
+            ScreenType::OptionsMenu => {
                 let r = run_options_menu_loop(&resources, &mut options).await;
                 if !options.music_on && background_music.is_some() {
                     resources.stop_background(background_music.take().unwrap())
@@ -52,13 +52,16 @@ async fn main() {
                     background_music = Some(resources.play_background());
                 };
                 r
-            },
-            ScreenType::GameAi => { run_ai_game_loop(&resources, &mut record_tables, &options).await }
+            }
+            ScreenType::GameAi => run_ai_game_loop(&resources, &mut record_tables, &options).await,
         };
     }
 }
 
-async fn run_records_menu_loop(resources: &Resources, record_tables: &mut RecordTables) -> ScreenType {
+async fn run_records_menu_loop(
+    resources: &Resources,
+    record_tables: &mut RecordTables,
+) -> ScreenType {
     let mut menu = menus::RecordsMenu::new(resources, record_tables);
     while !menu.draw_update() {
         next_frame().await;
@@ -108,7 +111,11 @@ async fn run_about_menu_loop(resources: &Resources) -> ScreenType {
     ScreenType::MainMenu
 }
 
-async fn run_game_loop(resources: &Resources, record_tables: &mut RecordTables, options: &Options) -> ScreenType {
+async fn run_game_loop(
+    resources: &Resources,
+    record_tables: &mut RecordTables,
+    options: &Options,
+) -> ScreenType {
     let mut last_update = get_time();
     let difficulty = options.difficulty;
     let record_table = record_tables.get_table(&difficulty);
@@ -132,13 +139,17 @@ async fn run_game_loop(resources: &Resources, record_tables: &mut RecordTables, 
         next_frame().await
     };
     if difficulty == Difficulty::Practice || &score < &record_table.scores[0] {
-        return ScreenType::MainMenu
+        return ScreenType::MainMenu;
     }
     record_tables.insert(&difficulty, options.nickname.clone(), score);
     ScreenType::RecordsMenu
 }
 
-async fn run_ai_game_loop(resources: &Resources, record_tables: &mut RecordTables, options: &Options) -> ScreenType {
+async fn run_ai_game_loop(
+    resources: &Resources,
+    record_tables: &mut RecordTables,
+    options: &Options,
+) -> ScreenType {
     let difficulty = Difficulty::Unreal;
     let ai_player = learn_ai(difficulty);
     let mut last_update = get_time();
@@ -162,6 +173,6 @@ async fn run_ai_game_loop(resources: &Resources, record_tables: &mut RecordTable
         }
         game_loop.draw();
         next_frame().await
-    };
+    }
     ScreenType::MainMenu
 }
