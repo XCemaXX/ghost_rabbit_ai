@@ -30,7 +30,7 @@ impl Index<usize> for Chromosome {
 impl FromIterator<f32> for Chromosome {
     fn from_iter<T: IntoIterator<Item = f32>>(iter: T) -> Self {
         Self {
-            genes: iter.into_iter().collect()
+            genes: iter.into_iter().collect(),
         }
     }
 }

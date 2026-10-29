@@ -22,11 +22,15 @@ impl Layer {
         Self { neurons }
     }
 
-    pub(crate) fn from_weights(input_size: usize, output_size: usize, weights: &mut dyn Iterator<Item = f32>) -> Self {
+    pub(crate) fn from_weights(
+        input_size: usize,
+        output_size: usize,
+        weights: &mut dyn Iterator<Item = f32>,
+    ) -> Self {
         Self {
             neurons: (0..output_size)
                 .map(|_| Neuron::from_weights(input_size, weights))
-                .collect()
+                .collect(),
         }
     }
 }

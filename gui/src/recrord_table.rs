@@ -1,5 +1,5 @@
-use std::collections::HashMap;
 use quad_storage::LocalStorage;
+use std::collections::HashMap;
 
 use super::Difficulty;
 
@@ -19,28 +19,40 @@ impl RecordTable {
         for i in 0..RECORDS_COUNT {
             self.names[i] = v[i + 1].1.to_string();
             self.scores[i] = v[i + 1].0;
-        };
+        }
     }
 
     fn new(difficulty: &Difficulty) -> Self {
         match difficulty {
-            Difficulty::Normal => {
-                RecordTable {
-                    names: ["Peace".into(), "100TOHH".into(), "Pillow".into(), "ApTinyPle".into(), "God".into()],
-                    scores: [200, 1000, 2000, 5000, 25000],
-                }
+            Difficulty::Normal => RecordTable {
+                names: [
+                    "Peace".into(),
+                    "100TOHH".into(),
+                    "Pillow".into(),
+                    "ApTinyPle".into(),
+                    "God".into(),
+                ],
+                scores: [200, 1000, 2000, 5000, 25000],
             },
-            Difficulty::Practice => {
-                RecordTable {
-                    names: ["Practice".into(), "Practice".into(), "Practice".into(), "Practice".into(), "Practice".into()],
-                    scores: [500, 1000, 5000, 9000, 25000],
-                }
+            Difficulty::Practice => RecordTable {
+                names: [
+                    "Practice".into(),
+                    "Practice".into(),
+                    "Practice".into(),
+                    "Practice".into(),
+                    "Practice".into(),
+                ],
+                scores: [500, 1000, 5000, 9000, 25000],
             },
-            Difficulty::Unreal => {
-                RecordTable {
-                    names: ["Anton".into(), "Slava".into(), "Renat".into(), "Daniilka".into(), "God".into()],
-                    scores: [200, 500, 1000, 3000, 5000],
-                }
+            Difficulty::Unreal => RecordTable {
+                names: [
+                    "Anton".into(),
+                    "Slava".into(),
+                    "Renat".into(),
+                    "Daniilka".into(),
+                    "God".into(),
+                ],
+                scores: [200, 500, 1000, 3000, 5000],
             },
         }
     }
@@ -55,7 +67,9 @@ impl RecordTables {
         for d in DIFFICULTIES {
             let mut rt = RecordTable::new(&d);
             for i in 0..RECORDS_COUNT {
-                if let Some(nickname) = storage.get(format!("{}_nickname_{}", d.as_str(), i).as_str()) {
+                if let Some(nickname) =
+                    storage.get(format!("{}_nickname_{}", d.as_str(), i).as_str())
+                {
                     rt.names[i] = nickname;
                 };
                 if let Some(score) = storage.get(format!("{}_score_{}", d.as_str(), i).as_str()) {
@@ -64,7 +78,10 @@ impl RecordTables {
             }
             res.insert(d, rt);
         }
-        res.insert(Difficulty::Practice, RecordTable::new(&Difficulty::Practice));
+        res.insert(
+            Difficulty::Practice,
+            RecordTable::new(&Difficulty::Practice),
+        );
         Self(res)
     }
 
@@ -72,7 +89,10 @@ impl RecordTables {
         let mut res = HashMap::new();
         res.insert(Difficulty::Normal, RecordTable::new(&Difficulty::Normal));
         res.insert(Difficulty::Unreal, RecordTable::new(&Difficulty::Unreal));
-        res.insert(Difficulty::Practice, RecordTable::new(&Difficulty::Practice));
+        res.insert(
+            Difficulty::Practice,
+            RecordTable::new(&Difficulty::Practice),
+        );
         self.0 = res;
 
         let storage = &mut quad_storage::STORAGE.lock().unwrap();
@@ -84,7 +104,7 @@ impl RecordTables {
     pub fn get_table(&self, difficulty: &Difficulty) -> &RecordTable {
         self.0.get(&difficulty).unwrap()
     }
-    
+
     pub fn insert(&mut self, difficulty: &Difficulty, name: String, score: usize) {
         if difficulty != &Difficulty::Unreal && difficulty != &Difficulty::Normal {
             return;
@@ -95,11 +115,21 @@ impl RecordTables {
         self.save_to_storage(difficulty, storage);
     }
 
-    fn save_to_storage(&self, difficulty: &Difficulty, storage: &mut std::sync::MutexGuard<LocalStorage>) {
+    fn save_to_storage(
+        &self,
+        difficulty: &Difficulty,
+        storage: &mut std::sync::MutexGuard<LocalStorage>,
+    ) {
         let rt = self.0.get(difficulty).unwrap();
         for i in 0..RECORDS_COUNT {
-            storage.set(format!("{}_nickname_{}", difficulty.as_str(), i).as_str(), &rt.names[i]);
-            storage.set(format!("{}_score_{}", difficulty.as_str(), i).as_str(), &rt.scores[i].to_string());
+            storage.set(
+                format!("{}_nickname_{}", difficulty.as_str(), i).as_str(),
+                &rt.names[i],
+            );
+            storage.set(
+                format!("{}_score_{}", difficulty.as_str(), i).as_str(),
+                &rt.scores[i].to_string(),
+            );
         }
     }
 }

@@ -1,11 +1,10 @@
-
 use game_logic::{Difficulty, GameState, MoveDirection, SCREEN_HEIGHT, SCREEN_WEIGHT};
 
 use crate::rand_gen::RandGen;
 
-use super::resources::{Resources, Backgrounds, Labels, Sounds};
-use super::square_screen::FixedRatioScreen;
 use super::options::Options;
+use super::resources::{Backgrounds, Labels, Resources, Sounds};
+use super::square_screen::FixedRatioScreen;
 
 use macroquad::prelude::*;
 
@@ -22,10 +21,9 @@ enum State {
     Finished,
 }
 
-pub struct GameScreen<'a>
-{
-    pub game_engine: GameState<RandGen>, 
-    size_params: FixedRatioScreen, 
+pub struct GameScreen<'a> {
+    pub game_engine: GameState<RandGen>,
+    size_params: FixedRatioScreen,
     resources: &'a Resources,
     state: State,
     state_duration: f64,
@@ -39,7 +37,7 @@ pub struct GameScreen<'a>
 impl<'a> GameScreen<'a> {
     pub fn new(resources: &'a Resources, options: &'a Options, scores: &'a [usize]) -> Self {
         let gs = GameScreen {
-            game_engine: GameState::new(RandGen{}, options.difficulty),
+            game_engine: GameState::new(RandGen {}, options.difficulty),
             nick_name: &options.nickname,
             is_sounds_on: options.sounds_on,
             size_params: FixedRatioScreen::new(SCREEN_WEIGHT / SCREEN_HEIGHT),
@@ -55,7 +53,7 @@ impl<'a> GameScreen<'a> {
     }
 
     pub fn update_size(&mut self) {
-        self.size_params = FixedRatioScreen::new(SCREEN_WEIGHT / SCREEN_HEIGHT); 
+        self.size_params = FixedRatioScreen::new(SCREEN_WEIGHT / SCREEN_HEIGHT);
     }
 
     pub fn update_game_state_by_input(&mut self) {
@@ -84,26 +82,27 @@ impl<'a> GameScreen<'a> {
                 }
                 if step_res.game_over {
                     self.play_sound(&Sounds::Death);
-                    self.change_state(State::ShowGameOver); 
+                    self.change_state(State::ShowGameOver);
                 }
-            },
+            }
             State::ShowGameOver => {
                 let minimal_score = *self.best_scores.into_iter().next().unwrap();
                 if self.state_duration > GAME_OVER_DURATION_SEC {
                     if self.game_engine.difficulty == Difficulty::Practice
-                        || self.get_score() < minimal_score {
+                        || self.get_score() < minimal_score
+                    {
                         self.change_state(State::Finished);
                     } else {
                         self.change_state(State::ShowNewRecord);
                     }
                 }
-            },
+            }
             State::ShowNewRecord => {
                 if self.state_duration > WIN_DURATION_SEC {
                     self.change_state(State::Finished);
                 }
-            },
-            _ => {},
+            }
+            _ => {}
         }
     }
 
@@ -145,14 +144,19 @@ impl<'a> GameScreen<'a> {
     }
 
     fn draw_floors(&self) {
-        let floor_texture = self.resources.get_platform_texture(&self.game_engine.difficulty);
+        let floor_texture = self
+            .resources
+            .get_platform_texture(&self.game_engine.difficulty);
         for floor in &self.game_engine.floors {
-            let r = self.size_params.rectangle_transform(
-                floor.position.into(), 
-                floor.size.into());
+            let r = self
+                .size_params
+                .rectangle_transform(floor.position.into(), floor.size.into());
             //draw_rectangle(f.0, f.1, f.2, f.3, GRAY);
             draw_texture_ex(
-                &floor_texture, r.x, r.y, WHITE,
+                &floor_texture,
+                r.x,
+                r.y,
+                WHITE,
                 DrawTextureParams {
                     dest_size: Some(vec2(r.w, r.h)),
                     ..Default::default()
@@ -165,12 +169,15 @@ impl<'a> GameScreen<'a> {
         let monster = &self.game_engine.monster;
         if !monster.is_dead {
             let monster_texture = self.resources.get_monster_texture(&monster.guise);
-            let r = self.size_params.rectangle_transform(
-                monster.position.into(),
-                monster.size.into());
+            let r = self
+                .size_params
+                .rectangle_transform(monster.position.into(), monster.size.into());
             //draw_rectangle(monster.0, monster.1, monster.2, monster.3, RED);
             draw_texture_ex(
-                &monster_texture, r.x, r.y, WHITE,
+                &monster_texture,
+                r.x,
+                r.y,
+                WHITE,
                 DrawTextureParams {
                     dest_size: Some(vec2(r.w, r.h)),
                     ..Default::default()
@@ -178,30 +185,38 @@ impl<'a> GameScreen<'a> {
             );
         }
     }
-    
+
     fn draw_player(&self) {
         let player = &self.game_engine.player;
-        let player_pos = self.size_params.circle_transform(
-            player.position.into(), 
-            player.radius);
+        let player_pos = self
+            .size_params
+            .circle_transform(player.position.into(), player.radius);
         //draw_circle(player_pos.x, player_pos.y, player_pos.r, GREEN);
-    
+
         let r = self.size_params.rectangle_transform(
-            (player.position.x, player.position.y), 
-            ((player.radius * 2.) * 25.0 / 10.0, (player.radius*2.0) * 46.0 / 10.0));
+            (player.position.x, player.position.y),
+            (
+                (player.radius * 2.) * 25.0 / 10.0,
+                (player.radius * 2.0) * 46.0 / 10.0,
+            ),
+        );
         let (texture, mut texture_params) = self.resources.get_player(player.get_stage());
-        texture_params.dest_size = Some(vec2(player_pos.r * 50.0 / 10.0, player_pos.r * 88.0 / 10.0));
+        texture_params.dest_size =
+            Some(vec2(player_pos.r * 50.0 / 10.0, player_pos.r * 88.0 / 10.0));
         draw_texture_ex(texture, r.x, r.y, WHITE, texture_params);
     }
-    
+
     fn draw_background(&self) {
         //draw_rectangle_lines(size_params.offset_x, size_params.offset_y, size_params.width, size_params.width, 2.0, BLACK);
-        let r = self.size_params.rectangle_transform(
-            (0.0, 0.0), 
-            (SCREEN_WEIGHT, SCREEN_HEIGHT));
+        let r = self
+            .size_params
+            .rectangle_transform((0.0, 0.0), (SCREEN_WEIGHT, SCREEN_HEIGHT));
         //draw_rectangle(s.0, s.1, s.2, s.3, BLACK);
         draw_texture_ex(
-            self.resources.get_background(&Backgrounds::Game), r.x, r.y, WHITE,
+            self.resources.get_background(&Backgrounds::Game),
+            r.x,
+            r.y,
+            WHITE,
             DrawTextureParams {
                 dest_size: Some(vec2(r.w, r.h)),
                 ..Default::default()
@@ -210,10 +225,13 @@ impl<'a> GameScreen<'a> {
     }
 
     fn draw_score(&self) {
-        let coords = self.size_params.get_pixel_coords(SCREEN_WEIGHT / 2.0 * 0.4, SCREEN_HEIGHT / 2.0 * 0.85);
+        let coords = self
+            .size_params
+            .get_pixel_coords(SCREEN_WEIGHT / 2.0 * 0.4, SCREEN_HEIGHT / 2.0 * 0.85);
         draw_text_ex(
             &format!("Score: {}", self.get_score()),
-            coords.0, coords.1,
+            coords.0,
+            coords.1,
             TextParams {
                 font_size: 50,
                 font_scale: self.size_params.font_scale,
@@ -231,25 +249,36 @@ impl<'a> GameScreen<'a> {
         let (texture, x_to_y) = self.resources.get_label(&Labels::P1000);
         let x = SCREEN_WEIGHT * 0.75;
         let y = x / x_to_y;
-        let r = self.size_params.rectangle_transform(
-            (0.0, SCREEN_HEIGHT / 2.0 * 0.75), 
-            (x / 2.0, y));
+        let r = self
+            .size_params
+            .rectangle_transform((0.0, SCREEN_HEIGHT / 2.0 * 0.75), (x / 2.0, y));
         let frame = (self.state_duration.fract() > 0.5) as i32;
         draw_texture_ex(
-            &texture, r.x, r.y, WHITE,
+            &texture,
+            r.x,
+            r.y,
+            WHITE,
             DrawTextureParams {
                 dest_size: Some(vec2(r.w, r.h)),
-                source: Some(Rect { x: 175.0 * frame as f32, y: 0.0, w: 175.0, h: 53.0 }),
+                source: Some(Rect {
+                    x: 175.0 * frame as f32,
+                    y: 0.0,
+                    w: 175.0,
+                    h: 53.0,
+                }),
                 ..Default::default()
             },
         );
     }
 
     fn draw_nick(&self) {
-        let coords = self.size_params.get_pixel_coords(-SCREEN_WEIGHT / 2.0 * 0.8, SCREEN_HEIGHT / 2.0 * 0.85);
+        let coords = self
+            .size_params
+            .get_pixel_coords(-SCREEN_WEIGHT / 2.0 * 0.8, SCREEN_HEIGHT / 2.0 * 0.85);
         draw_text_ex(
             &format!("{}", self.nick_name),
-            coords.0, coords.1,
+            coords.0,
+            coords.1,
             TextParams {
                 font_size: 50,
                 font_scale: self.size_params.font_scale,
@@ -265,7 +294,7 @@ impl<'a> GameScreen<'a> {
             State::Paused => self.draw_pause(),
             State::ShowNewRecord => self.draw_win(),
             State::ShowGameOver => self.draw_game_over(),
-            _ => {},
+            _ => {}
         }
     }
 
@@ -285,11 +314,12 @@ impl<'a> GameScreen<'a> {
         let (texture, x_to_y) = self.resources.get_label(label);
         let x = SCREEN_WEIGHT * 0.75;
         let y = x / x_to_y;
-        let r = self.size_params.rectangle_transform(
-            (0.0, 0.0), 
-            (x, y));
+        let r = self.size_params.rectangle_transform((0.0, 0.0), (x, y));
         draw_texture_ex(
-            &texture, r.x, r.y, WHITE,
+            &texture,
+            r.x,
+            r.y,
+            WHITE,
             DrawTextureParams {
                 dest_size: Some(vec2(r.w, r.h)),
                 ..Default::default()
@@ -306,10 +336,14 @@ impl<'a> GameScreen<'a> {
             let (texture, x_to_y) = self.resources.get_label(&Labels::Record);
             let w = SCREEN_WEIGHT * 0.15;
             let h = w / x_to_y;
-            let r = self.size_params.rectangle_transform(
-                (-SCREEN_WEIGHT / 2.0 + w / 2.0, y), (w, h));
+            let r = self
+                .size_params
+                .rectangle_transform((-SCREEN_WEIGHT / 2.0 + w / 2.0, y), (w, h));
             draw_texture_ex(
-                &texture, r.x, r.y, WHITE,
+                &texture,
+                r.x,
+                r.y,
+                WHITE,
                 DrawTextureParams {
                     dest_size: Some(vec2(r.w, r.h)),
                     ..Default::default()
@@ -324,7 +358,7 @@ impl<'a> GameScreen<'a> {
     }
 
     fn update_pause(&mut self) {
-        let mut change_state = self.buttons.is_pause_button_pressed(&self.size_params) 
+        let mut change_state = self.buttons.is_pause_button_pressed(&self.size_params)
             || self.state == State::Paused && is_mouse_button_pressed(MouseButton::Left);
         for key in get_keys_pressed() {
             if key == KeyCode::P {
@@ -333,9 +367,11 @@ impl<'a> GameScreen<'a> {
             }
         }
         if change_state {
-            self.change_state(
-                if self.state == State::Paused { State::Running } else { State::Paused }
-            );
+            self.change_state(if self.state == State::Paused {
+                State::Running
+            } else {
+                State::Paused
+            });
         }
     }
 
@@ -343,8 +379,10 @@ impl<'a> GameScreen<'a> {
         let mut change_state = self.buttons.is_exit_button_pressed(&self.size_params);
         for key in get_keys_down() {
             match key {
-                KeyCode::Escape => { change_state = true; }
-                _ => { },
+                KeyCode::Escape => {
+                    change_state = true;
+                }
+                _ => {}
             }
         }
         if change_state {
@@ -380,7 +418,12 @@ impl<'a> Buttons<'a> {
         let (exit, _) = resources.get_label(&Labels::ExitButton);
         let w = SCREEN_WEIGHT * 0.08;
         let h = w / x_to_y;
-        Self { pause: pause_button, exit, w, h }
+        Self {
+            pause: pause_button,
+            exit,
+            w,
+            h,
+        }
     }
 
     fn draw_pause_button(&self, size_params: &FixedRatioScreen) {
@@ -395,17 +438,30 @@ impl<'a> Buttons<'a> {
 
     fn get_pause_button_rect(&self, size_params: &FixedRatioScreen) -> Rect {
         size_params.rectangle_transform(
-            (SCREEN_WEIGHT / 2.0 - self.w / 2.0 * 1.5, -SCREEN_HEIGHT / 2.0 + self.h / 2.0 * 1.5), (self.w, self.h))
+            (
+                SCREEN_WEIGHT / 2.0 - self.w / 2.0 * 1.5,
+                -SCREEN_HEIGHT / 2.0 + self.h / 2.0 * 1.5,
+            ),
+            (self.w, self.h),
+        )
     }
 
     fn get_exit_button_rect(&self, size_params: &FixedRatioScreen) -> Rect {
         size_params.rectangle_transform(
-            (-SCREEN_WEIGHT / 2.0 + self.w / 2.0 * 1.5, -SCREEN_HEIGHT / 2.0 + self.h / 2.0 * 1.5), (self.w, self.h))
+            (
+                -SCREEN_WEIGHT / 2.0 + self.w / 2.0 * 1.5,
+                -SCREEN_HEIGHT / 2.0 + self.h / 2.0 * 1.5,
+            ),
+            (self.w, self.h),
+        )
     }
 
     fn draw(r: Rect, t: &Texture2D) {
         draw_texture_ex(
-            &t, r.x, r.y, WHITE,
+            &t,
+            r.x,
+            r.y,
+            WHITE,
             DrawTextureParams {
                 dest_size: Some(vec2(r.w, r.h)),
                 ..Default::default()
@@ -425,8 +481,7 @@ impl<'a> Buttons<'a> {
 
     fn is_cursor_in(r: &Rect) -> bool {
         let (x, y) = mouse_position();
-        y > r.y && y < r.y + r.h &&
-        x > r.x && x < r.x + r.w 
+        y > r.y && y < r.y + r.h && x > r.x && x < r.x + r.w
     }
 }
 
@@ -443,21 +498,21 @@ pub fn get_move_direction_by_input() -> MoveDirection {
     };
     for key in get_keys_down() {
         match key {
-            KeyCode::Left | KeyCode::A => { 
+            KeyCode::Left | KeyCode::A => {
                 move_direction = if move_direction == MoveDirection::Right {
                     MoveDirection::None
                 } else {
                     MoveDirection::Left
                 };
-            },
-            KeyCode::Right | KeyCode::D => { 
+            }
+            KeyCode::Right | KeyCode::D => {
                 move_direction = if move_direction == MoveDirection::Left {
                     MoveDirection::None
                 } else {
                     MoveDirection::Right
                 };
-            },
-            _ => { },
+            }
+            _ => {}
         }
     }
     move_direction

@@ -1,8 +1,8 @@
-use crate::GenRandFloat;
 use crate::Chromosome;
+use crate::GenRandFloat;
 
 pub trait MutationMethod {
-    fn mutate<R:GenRandFloat>(&self, rng: &mut R, child: &mut Chromosome);
+    fn mutate<R: GenRandFloat>(&self, rng: &mut R, child: &mut Chromosome);
 }
 
 #[derive(Clone, Debug)]
@@ -14,12 +14,15 @@ pub struct GaussianMutation {
 impl GaussianMutation {
     pub fn new(probability_to_change_genes: f32, change_magnitude: f32) -> Self {
         assert!(probability_to_change_genes >= 0.0 && probability_to_change_genes <= 1.0);
-        Self { probability_to_change_genes, change_magnitude }
+        Self {
+            probability_to_change_genes,
+            change_magnitude,
+        }
     }
 }
 
 impl MutationMethod for GaussianMutation {
-    fn mutate<R:GenRandFloat>(&self, rng: &mut R, chromosome: &mut Chromosome) {
+    fn mutate<R: GenRandFloat>(&self, rng: &mut R, chromosome: &mut Chromosome) {
         for g in chromosome.iter_mut() {
             if rng.gen_range(0.0..=1.0) < self.probability_to_change_genes {
                 *g += rng.gen_range(-self.change_magnitude..=self.change_magnitude);

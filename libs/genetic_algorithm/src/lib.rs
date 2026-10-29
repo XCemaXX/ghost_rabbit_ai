@@ -1,17 +1,17 @@
-mod selection;
 mod chromosome;
 mod crossover;
 mod mutation;
+mod selection;
 
-use rand_trait::GenRandFloat;
 use crossover::CrossoverMethod;
 use mutation::MutationMethod;
+use rand_trait::GenRandFloat;
 use selection::SelectionMethod;
 
 pub use chromosome::Chromosome;
 pub use crossover::BlxACrossover;
-pub use selection::RouletteWheelSelection;
 pub use mutation::GaussianMutation;
+pub use selection::RouletteWheelSelection;
 
 pub trait Individual {
     fn fitness(&self) -> f32;
@@ -25,7 +25,7 @@ pub struct GeneticAlgorithm<S, C, M> {
     mutation_method: M,
 }
 
-impl<S:SelectionMethod, C:CrossoverMethod, M:MutationMethod> GeneticAlgorithm<S, C, M> {
+impl<S: SelectionMethod, C: CrossoverMethod, M: MutationMethod> GeneticAlgorithm<S, C, M> {
     pub fn new(selection_method: S, crossover_method: C, mutation_method: M) -> Self {
         Self {
             selection_method,
@@ -34,7 +34,11 @@ impl<S:SelectionMethod, C:CrossoverMethod, M:MutationMethod> GeneticAlgorithm<S,
         }
     }
 
-    pub fn create_population<I: Individual, R: GenRandFloat>(&mut self, rng: &mut R, population: &[I]) -> Vec<I> {
+    pub fn create_population<I: Individual, R: GenRandFloat>(
+        &mut self,
+        rng: &mut R,
+        population: &[I],
+    ) -> Vec<I> {
         assert!(!population.is_empty());
         let mut next_population = Vec::new();
 
@@ -49,24 +53,37 @@ impl<S:SelectionMethod, C:CrossoverMethod, M:MutationMethod> GeneticAlgorithm<S,
     }
 
     fn get_top_parents<I: Individual>(&self, population: &[I], parents_count: usize) -> Vec<I> {
-        let mut fitness: Vec<(f32, &I)> = population.iter().map(|individual| (individual.fitness(), individual)).collect();
-        fitness.sort_by(|a, b| { b.0.partial_cmp(&a.0).unwrap() });
-        
+        let mut fitness: Vec<(f32, &I)> = population
+            .iter()
+            .map(|individual| (individual.fitness(), individual))
+            .collect();
+        fitness.sort_by(|a, b| b.0.partial_cmp(&a.0).unwrap());
+
         #[cfg(feature = "testing")]
         {
-            let d: Vec<_> = fitness[0..parents_count].iter().map(|(a, _)| {a}).collect();
+            let d: Vec<_> = fitness[0..parents_count].iter().map(|(a, _)| a).collect();
             println!("{:?}", d);
         }
-        fitness[0..parents_count].iter().map(|(_, i)| { I::create(i.chromosome().clone()) }).collect()
+        fitness[0..parents_count]
+            .iter()
+            .map(|(_, i)| I::create(i.chromosome().clone()))
+            .collect()
     }
 
-    fn create_children<I: Individual, R: GenRandFloat>(&self, rng: &mut R, population: &[I], children_count: usize) -> Vec<I> {
-        (0..children_count).map(|_| {
-            let parent_a = self.selection_method.select(rng, population).chromosome();
-            let parent_b = self.selection_method.select(rng, population).chromosome();
-            let mut child = self.crossover_method.crossover(rng, parent_a, parent_b);
-            self.mutation_method.mutate(rng, &mut child);
-            I::create(child)
-        }).collect()
+    fn create_children<I: Individual, R: GenRandFloat>(
+        &self,
+        rng: &mut R,
+        population: &[I],
+        children_count: usize,
+    ) -> Vec<I> {
+        (0..children_count)
+            .map(|_| {
+                let parent_a = self.selection_method.select(rng, population).chromosome();
+                let parent_b = self.selection_method.select(rng, population).chromosome();
+                let mut child = self.crossover_method.crossover(rng, parent_a, parent_b);
+                self.mutation_method.mutate(rng, &mut child);
+                I::create(child)
+            })
+            .collect()
     }
 }
