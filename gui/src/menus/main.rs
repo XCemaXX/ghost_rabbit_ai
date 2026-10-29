@@ -1,9 +1,9 @@
 use super::Menu;
-use super::{Resources, Backgrounds}; //, Labels, SCREEN_WEIGHT, SCREEN_HEIGHT
-use std::ops::{Deref, DerefMut};
-use super::controls::{create_button, Button};
+use super::controls::{Button, create_button};
+use super::{Backgrounds, Resources}; //, Labels, SCREEN_WEIGHT, SCREEN_HEIGHT
 use crate::resources::Buttons;
-use macroquad::input::{get_keys_down, KeyCode};
+use macroquad::input::{KeyCode, get_keys_down};
+use std::ops::{Deref, DerefMut};
 
 #[allow(dead_code)]
 #[derive(PartialEq, Eq)]
@@ -46,19 +46,27 @@ impl MainMenu<'_> {
         self.size_params.draw_border();
         let pressed_keys = get_keys_down();
 
-        if self.newgame_button.draw(&self.menu.size_params) 
-            || pressed_keys.contains(&KeyCode::Space) 
+        if self.newgame_button.draw(&self.menu.size_params)
+            || pressed_keys.contains(&KeyCode::Space)
             || pressed_keys.contains(&KeyCode::Enter)
             || pressed_keys.contains(&KeyCode::Key1)
         {
             ScreenType::Game
-        } else if self.options_button.draw(&self.menu.size_params) || pressed_keys.contains(&KeyCode::Key2) {
+        } else if self.options_button.draw(&self.menu.size_params)
+            || pressed_keys.contains(&KeyCode::Key2)
+        {
             ScreenType::OptionsMenu
-        } else if self.records_button.draw(&self.menu.size_params) || pressed_keys.contains(&KeyCode::Key3) {
+        } else if self.records_button.draw(&self.menu.size_params)
+            || pressed_keys.contains(&KeyCode::Key3)
+        {
             ScreenType::RecordsMenu
-        } else if self.about_button.draw(&self.menu.size_params) || pressed_keys.contains(&KeyCode::Key4) {
+        } else if self.about_button.draw(&self.menu.size_params)
+            || pressed_keys.contains(&KeyCode::Key4)
+        {
             ScreenType::AboutMenu
-        } else if self.htp_button.draw(&self.menu.size_params) || pressed_keys.contains(&KeyCode::Key5) {
+        } else if self.htp_button.draw(&self.menu.size_params)
+            || pressed_keys.contains(&KeyCode::Key5)
+        {
             ScreenType::HtpMenu
         // } else if self.ai_button.draw(&self.menu.size_params) {
         //     ScreenType::GameAi

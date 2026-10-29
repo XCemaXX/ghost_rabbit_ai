@@ -1,5 +1,5 @@
-use super::primitives::{Vec2, Rectangle};
-use super::{SCREEN_HEIGHT, SCREEN_WEIGHT, RIGHT_X, LEFT_X, BOT_Y, TOP_Y, CENTER};
+use super::primitives::{Rectangle, Vec2};
+use super::{BOT_Y, CENTER, LEFT_X, RIGHT_X, SCREEN_HEIGHT, SCREEN_WEIGHT, TOP_Y};
 use rand_trait::GenRandFloat;
 
 const MONSTER_WIDTH: f32 = SCREEN_WEIGHT * (56.0 - 5.0) / 420.0;
@@ -23,17 +23,20 @@ pub struct Monster {
 }
 
 impl Monster {
-    pub fn new<T:GenRandFloat>(rng: &mut T, player_pos: &Vec2, speed_abs: f32) -> Self {
+    pub fn new<T: GenRandFloat>(rng: &mut T, player_pos: &Vec2, speed_abs: f32) -> Self {
         let guise = match rng.gen_range(0.0..=4.0) {
-            0.0..=1.0 => { MonsterType::Mummy },
-            1.0..=2.0 => { MonsterType::Jason },
-            2.0..=3.0 => { MonsterType::Vampire },
-            _ =>  { MonsterType::Frankenstein },
+            0.0..=1.0 => MonsterType::Mummy,
+            1.0..=2.0 => MonsterType::Jason,
+            2.0..=3.0 => MonsterType::Vampire,
+            _ => MonsterType::Frankenstein,
         };
         let (position, speed) = gen_pos(rng, player_pos, speed_abs);
-        Self { 
+        Self {
             position,
-            size: Vec2 { x: MONSTER_WIDTH, y: MONSTER_HIGHT },
+            size: Vec2 {
+                x: MONSTER_WIDTH,
+                y: MONSTER_HIGHT,
+            },
             speed,
             dead_time: 0.0,
             guise,
@@ -42,9 +45,12 @@ impl Monster {
     }
 
     pub fn new_dead() -> Self {
-        Self { 
+        Self {
             position: Vec2 { x: 0.0, y: 0.0 },
-            size: Vec2 { x: MONSTER_WIDTH, y: MONSTER_HIGHT },
+            size: Vec2 {
+                x: MONSTER_WIDTH,
+                y: MONSTER_HIGHT,
+            },
             speed: Vec2 { x: 0.0, y: 0.0 },
             dead_time: 0.0,
             guise: MonsterType::Mummy,
@@ -61,8 +67,9 @@ impl Monster {
         self.position.x = self.position.x + self.speed.x * dt;
 
         if (self.position.x - self.size.x / 2.0) > RIGHT_X && self.speed.x > 0.0
-        || (self.position.x + self.size.x / 2.0) < LEFT_X && self.speed.x < 0.0
-        || (self.position.y + self.size.y / 2.0) < BOT_Y {
+            || (self.position.x + self.size.x / 2.0) < LEFT_X && self.speed.x < 0.0
+            || (self.position.y + self.size.y / 2.0) < BOT_Y
+        {
             self.is_dead = true;
         }
     }
@@ -77,26 +84,29 @@ impl Monster {
     }
 }
 
-fn gen_pos<T:GenRandFloat>(rng: &mut T, player_pos: &Vec2, speed_abs: f32) -> (Vec2, Vec2) {
+fn gen_pos<T: GenRandFloat>(rng: &mut T, player_pos: &Vec2, speed_abs: f32) -> (Vec2, Vec2) {
     let pos = match rng.gen_range(0.0..=3.5) {
-        0.0..=1.5 => { // Top
+        0.0..=1.5 => {
+            // Top
             Vec2 {
                 x: rng.gen_range(LEFT_X..=RIGHT_X),
-                y: TOP_Y + MONSTER_HIGHT, 
+                y: TOP_Y + MONSTER_HIGHT,
             }
-        },
-        1.5..=2.5 => { // Left
+        }
+        1.5..=2.5 => {
+            // Left
             Vec2 {
                 x: LEFT_X - MONSTER_WIDTH,
-                y: rng.gen_range(CENTER..=TOP_Y) + MONSTER_HIGHT, 
+                y: rng.gen_range(CENTER..=TOP_Y) + MONSTER_HIGHT,
             }
-        },
-        _ =>  { // Right
+        }
+        _ => {
+            // Right
             Vec2 {
                 x: RIGHT_X + MONSTER_WIDTH,
-                y: rng.gen_range(CENTER..=TOP_Y) + MONSTER_HIGHT, 
+                y: rng.gen_range(CENTER..=TOP_Y) + MONSTER_HIGHT,
             }
-        },
+        }
     };
     let x_speed = speed_abs * (player_pos.x - pos.x) / (SCREEN_WEIGHT);
     let speed = Vec2 {

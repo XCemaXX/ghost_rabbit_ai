@@ -1,15 +1,15 @@
-mod primitives;
 mod collide;
-mod player;
 mod floor;
 mod monster;
+mod player;
+mod primitives;
 
-use rand_trait::GenRandFloat;
-use primitives::{Vec2, Circle, Rectangle};
-use player::{Player, MAX_JUMP_Y};
 use floor::Floor;
 use monster::Monster;
 pub use monster::MonsterType;
+use player::{MAX_JUMP_Y, Player};
+use primitives::{Circle, Rectangle, Vec2};
+use rand_trait::GenRandFloat;
 
 const TOP_Y: f32 = 1.0;
 pub const BOT_Y: f32 = -1.0;
@@ -41,7 +41,7 @@ pub struct StepResult {
     pub game_over: bool,
 }
 
-pub struct GameState<T:GenRandFloat> {
+pub struct GameState<T: GenRandFloat> {
     pub floors: [Floor; MAX_FLOORS],
     pub player: Player,
     pub monster: Monster,
@@ -51,11 +51,22 @@ pub struct GameState<T:GenRandFloat> {
     score: f32,
 }
 
-impl<T:GenRandFloat> GameState<T> {
+impl<T: GenRandFloat> GameState<T> {
     pub fn new(rng: T, difficulty: Difficulty) -> Self {
         let mut s = Self {
-            floors: [(); MAX_FLOORS].map(|_| floor::Floor::new(Vec2{ x: CENTER, y: BOT_Y - 1.0 })),
-            player: Player::new( Vec2{ x: CENTER, y: CENTER }, CENTER),
+            floors: [(); MAX_FLOORS].map(|_| {
+                floor::Floor::new(Vec2 {
+                    x: CENTER,
+                    y: BOT_Y - 1.0,
+                })
+            }),
+            player: Player::new(
+                Vec2 {
+                    x: CENTER,
+                    y: CENTER,
+                },
+                CENTER,
+            ),
             monster: Monster::new_dead(),
             rng,
             difficulty,
@@ -70,7 +81,8 @@ impl<T:GenRandFloat> GameState<T> {
     pub fn next_step(&mut self, dt: f32) -> StepResult {
         let dt = dt / 2.0;
         let mut collided = false;
-        for _ in 0..2 { // makes collide more precise
+        for _ in 0..2 {
+            // makes collide more precise
             let dy = self.player.move_player(dt);
             self.score += dy;
             self.update_monster(dt);
@@ -79,7 +91,10 @@ impl<T:GenRandFloat> GameState<T> {
         }
         self.recreate_floors();
 
-        return StepResult{hit: collided, game_over: self.is_game_over()};
+        return StepResult {
+            hit: collided,
+            game_over: self.is_game_over(),
+        };
     }
 
     pub fn move_player_by_x(&mut self, dt: f32, side: MoveDirection) {
@@ -109,10 +124,21 @@ impl<T:GenRandFloat> GameState<T> {
     }
 
     fn is_game_over(&mut self) -> bool {
-        if self.player.position.y < BOT_Y 
-        || !self.monster.is_dead && collide::is_collide(&self.player.get_bounding_box(), &self.monster.get_bounding_box()) {
+        if self.player.position.y < BOT_Y
+            || !self.monster.is_dead
+                && collide::is_collide(
+                    &self.player.get_bounding_box(),
+                    &self.monster.get_bounding_box(),
+                )
+        {
             if self.difficulty == Difficulty::Practice {
-                self.player = Player::new(Vec2{ x:CENTER, y: CENTER }, CENTER);
+                self.player = Player::new(
+                    Vec2 {
+                        x: CENTER,
+                        y: CENTER,
+                    },
+                    CENTER,
+                );
                 self.monster = Monster::new_dead();
                 return false;
             }
@@ -122,7 +148,10 @@ impl<T:GenRandFloat> GameState<T> {
     }
 
     fn create_first_floor_under_player(&mut self) {
-        self.floors[0].position = Vec2{ x: CENTER , y: BOT_Y + SCREEN_HEIGHT / 16.0 };
+        self.floors[0].position = Vec2 {
+            x: CENTER,
+            y: BOT_Y + SCREEN_HEIGHT / 16.0,
+        };
     }
 
     fn move_objects_down(&mut self, dy: f32) {
@@ -149,7 +178,8 @@ impl<T:GenRandFloat> GameState<T> {
         }
         for floor in &self.floors {
             if collide::is_collide(&self.player.get_bounding_box(), &floor.get_bounding_box())
-            && is_player_over_floor(&self.player, &floor) {
+                && is_player_over_floor(&self.player, &floor)
+            {
                 self.player.set_max_speed();
                 return true;
             }
@@ -162,9 +192,11 @@ impl<T:GenRandFloat> GameState<T> {
         if self.monster.dead_time > self.monster_recreation_timer {
             const SPEED_CONSTANT: f32 = 0.2;
             let speed_abs = if self.difficulty == Difficulty::Unreal {
-                self.rng.gen_range((3.0 * SPEED_CONSTANT)..=(6.5 * SPEED_CONSTANT))
+                self.rng
+                    .gen_range((3.0 * SPEED_CONSTANT)..=(6.5 * SPEED_CONSTANT))
             } else {
-                self.rng.gen_range((2.0 * SPEED_CONSTANT)..=(5.5 * SPEED_CONSTANT))
+                self.rng
+                    .gen_range((2.0 * SPEED_CONSTANT)..=(5.5 * SPEED_CONSTANT))
             };
             self.monster = Monster::new(&mut self.rng, &self.player.position, speed_abs);
             self.recalc_reareation_timer();
@@ -185,10 +217,12 @@ fn is_player_over_floor(p: &Player, f: &Floor) -> bool {
     return p.position.y > (f.position.y + f.size.y / 2.0);
 }
 
-fn create_floor<T:GenRandFloat>(rng: &mut T, floor: &mut Floor, top_floor_y: f32) -> f32 {
+fn create_floor<T: GenRandFloat>(rng: &mut T, floor: &mut Floor, top_floor_y: f32) -> f32 {
     const MIN_FLOOR_DIST: f32 = SCREEN_HEIGHT / MAX_FLOORS as f32;
-    floor.position.x = rng.gen_range((LEFT_X + floor.size.x / 2.0)..=(RIGHT_X - floor.size.x / 2.0));
-    floor.position.y = rng.gen_range((top_floor_y + MIN_FLOOR_DIST)..=(top_floor_y + MAX_JUMP_Y * 0.95));
+    floor.position.x =
+        rng.gen_range((LEFT_X + floor.size.x / 2.0)..=(RIGHT_X - floor.size.x / 2.0));
+    floor.position.y =
+        rng.gen_range((top_floor_y + MIN_FLOOR_DIST)..=(top_floor_y + MAX_JUMP_Y * 0.95));
     floor.position.y
 }
 
@@ -206,7 +240,7 @@ impl Difficulty {
             0 => Difficulty::Practice,
             1 => Difficulty::Normal,
             2 => Difficulty::Unreal,
-            _ => panic!("Not supported difficulty")
+            _ => panic!("Not supported difficulty"),
         }
     }
 
@@ -223,7 +257,7 @@ impl Difficulty {
             "Practice" => Difficulty::Practice,
             "Normal" => Difficulty::Normal,
             "Unreal" => Difficulty::Unreal,
-            _ => panic!("Not supported difficulty")
+            _ => panic!("Not supported difficulty"),
         }
     }
 }
