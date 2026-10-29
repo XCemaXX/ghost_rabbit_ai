@@ -130,8 +130,7 @@ async fn run_game_loop(
 
         game_loop.update_game_state_by_input();
         let move_direction = game_loop.move_direction_by_input();
-        game_loop.move_player(dt, move_direction);
-        game_loop.next_step(dt);
+        game_loop.advance(dt, move_direction);
         if game_loop.is_game_over() {
             break game_loop.get_score();
         }
@@ -166,8 +165,7 @@ async fn run_ai_game_loop(
         let inputs_ai = generate_inputs_for_ai(&game_loop.game_engine);
         let move_direction = get_next_move_by_ai(&ai_player, inputs_ai);
 
-        game_loop.move_player(dt, move_direction);
-        game_loop.next_step(dt);
+        game_loop.advance(dt, move_direction);
         if game_loop.is_game_over() {
             break;
         }
