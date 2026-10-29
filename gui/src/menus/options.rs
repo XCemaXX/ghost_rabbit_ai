@@ -56,7 +56,7 @@ impl OptionsMenu<'_> {
                 (SCREEN_WEIGHT / 4.0, 0.04),
             ),
             back_button: create_button(
-                &resources,
+                resources,
                 &Buttons::Back,
                 (SCREEN_WEIGHT / 4.0, -SCREEN_HEIGHT / 3.5),
             ),
@@ -79,8 +79,8 @@ impl OptionsMenu<'_> {
         self.sounds_on.draw(letterbox);
         *self.difficulty = Difficulty::from_usize(self.difficulty_button.draw(letterbox));
 
-        return macroquad::input::get_keys_down().contains(&macroquad::input::KeyCode::Escape)
-            || self.back_button.draw(letterbox);
+        macroquad::input::get_keys_down().contains(&macroquad::input::KeyCode::Escape)
+            || self.back_button.draw(letterbox)
     }
 
     fn draw_editbox(&mut self) {

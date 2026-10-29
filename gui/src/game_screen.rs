@@ -92,7 +92,7 @@ impl<'a> GameScreen<'a> {
                 }
             }
             State::ShowGameOver => {
-                let minimal_score = *self.best_scores.into_iter().next().unwrap();
+                let minimal_score = *self.best_scores.iter().next().unwrap();
                 if self.state_duration > GAME_OVER_DURATION_SEC {
                     if self.game_engine.difficulty == Difficulty::Practice
                         || self.get_score() < minimal_score
@@ -103,10 +103,8 @@ impl<'a> GameScreen<'a> {
                     }
                 }
             }
-            State::ShowNewRecord => {
-                if self.state_duration > WIN_DURATION_SEC {
-                    self.change_state(State::Finished);
-                }
+            State::ShowNewRecord if self.state_duration > WIN_DURATION_SEC => {
+                self.change_state(State::Finished);
             }
             _ => {}
         }
@@ -213,7 +211,7 @@ impl<'a> GameScreen<'a> {
         ));
         let frame = (self.state_duration.fract() > 0.5) as i32;
         draw_texture_ex(
-            &texture,
+            texture,
             r.x,
             r.y,
             WHITE,
@@ -301,11 +299,8 @@ impl<'a> GameScreen<'a> {
         let mut change_state =
             clicked_at(letterbox).is_some_and(|p| self.buttons.exit_rect().contains(p));
         for key in get_keys_down() {
-            match key {
-                KeyCode::Escape => {
-                    change_state = true;
-                }
-                _ => {}
+            if key == KeyCode::Escape {
+                change_state = true;
             }
         }
         if change_state {

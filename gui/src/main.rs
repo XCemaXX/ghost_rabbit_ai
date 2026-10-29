@@ -120,7 +120,7 @@ async fn run_game_loop(
     let mut last_update = get_time();
     let difficulty = options.difficulty;
     let record_table = record_tables.get_table(&difficulty);
-    let mut game_loop = game_screen::GameScreen::new(&resources, options, &record_table.scores);
+    let mut game_loop = game_screen::GameScreen::new(resources, options, &record_table.scores);
     let score = loop {
         //clear_background(LIGHTGRAY);
         let lu = get_time();
@@ -138,7 +138,7 @@ async fn run_game_loop(
         game_loop.draw();
         next_frame().await
     };
-    if difficulty == Difficulty::Practice || &score < &record_table.scores[0] {
+    if difficulty == Difficulty::Practice || score < record_table.scores[0] {
         return ScreenType::MainMenu;
     }
     record_tables.insert(&difficulty, options.nickname.clone(), score);
@@ -154,7 +154,7 @@ async fn run_ai_game_loop(
     let ai_player = learn_ai(difficulty);
     let mut last_update = get_time();
     let record_table = record_tables.get_table(&difficulty);
-    let mut game_loop = game_screen::GameScreen::new(&resources, options, &record_table.scores);
+    let mut game_loop = game_screen::GameScreen::new(resources, options, &record_table.scores);
     loop {
         let lu = get_time();
         let dt = lu - last_update;

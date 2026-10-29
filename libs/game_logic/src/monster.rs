@@ -63,8 +63,8 @@ impl Monster {
             self.dead_time += dt;
             return;
         }
-        self.position.y = self.position.y + self.speed.y * dt;
-        self.position.x = self.position.x + self.speed.x * dt;
+        self.position.y += self.speed.y * dt;
+        self.position.x += self.speed.x * dt;
 
         if (self.position.x - self.size.x / 2.0) > RIGHT_X && self.speed.x > 0.0
             || (self.position.x + self.size.x / 2.0) < LEFT_X && self.speed.x < 0.0
@@ -113,5 +113,5 @@ fn gen_pos<T: GenRandFloat>(rng: &mut T, player_pos: &Vec2, speed_abs: f32) -> (
         x: x_speed,
         y: -f32::sqrt(speed_abs * speed_abs - x_speed * x_speed),
     };
-    return (pos, speed);
+    (pos, speed)
 }

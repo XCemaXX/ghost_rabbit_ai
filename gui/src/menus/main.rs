@@ -31,11 +31,11 @@ impl MainMenu<'_> {
     pub fn new<'a>(resources: &'a Resources) -> MainMenu<'a> {
         MainMenu {
             menu: Menu::new(resources, Backgrounds::MainMenu),
-            newgame_button: create_button(&resources, &Buttons::NewGame, (-0.37, 0.02)),
-            options_button: create_button(&resources, &Buttons::Options, (-0.04, -0.17)),
-            records_button: create_button(&resources, &Buttons::Records, (0.26, -0.38)),
-            about_button: create_button(&resources, &Buttons::About, (0.47, -0.61)),
-            htp_button: create_button(&resources, &Buttons::HowToPlay, (-0.21, -0.78)),
+            newgame_button: create_button(resources, &Buttons::NewGame, (-0.37, 0.02)),
+            options_button: create_button(resources, &Buttons::Options, (-0.04, -0.17)),
+            records_button: create_button(resources, &Buttons::Records, (0.26, -0.38)),
+            about_button: create_button(resources, &Buttons::About, (0.47, -0.61)),
+            htp_button: create_button(resources, &Buttons::HowToPlay, (-0.21, -0.78)),
             // ai_button: create_button(&resources, &Buttons::Ai, (0.47, 0.02)),
         }
     }

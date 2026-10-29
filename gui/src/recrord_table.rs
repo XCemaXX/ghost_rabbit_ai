@@ -102,7 +102,7 @@ impl RecordTables {
     }
 
     pub fn get_table(&self, difficulty: &Difficulty) -> &RecordTable {
-        self.0.get(&difficulty).unwrap()
+        self.0.get(difficulty).unwrap()
     }
 
     pub fn insert(&mut self, difficulty: &Difficulty, name: String, score: usize) {

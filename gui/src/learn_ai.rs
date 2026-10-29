@@ -103,7 +103,7 @@ fn create_random_players(rng: &mut RandGen, topology: &[LayerTopology]) -> Vec<A
     let mut players = Vec::new();
     for _ in 0..POPULATION_SIZE {
         let player = AiPlayer {
-            brain: Network::new(rng, &topology),
+            brain: Network::new(rng, topology),
         };
         players.push(player);
     }
@@ -111,16 +111,17 @@ fn create_random_players(rng: &mut RandGen, topology: &[LayerTopology]) -> Vec<A
 }
 
 pub fn generate_inputs_for_ai(game: &GameState<RandGen>) -> Vec<f32> {
-    let mut inputs = Vec::new();
-    inputs.push(game.player.position.x);
-    inputs.push(game.player.position.y);
-    inputs.push(game.player.speed.x);
-    inputs.push(game.player.speed.y);
-    inputs.push(game.monster.position.x);
-    inputs.push(game.monster.position.y);
-    inputs.push(game.monster.speed.x);
-    inputs.push(game.monster.speed.y);
-    inputs.push(game.monster.is_dead as i32 as f32);
+    let mut inputs = vec![
+        game.player.position.x,
+        game.player.position.y,
+        game.player.speed.x,
+        game.player.speed.y,
+        game.monster.position.x,
+        game.monster.position.y,
+        game.monster.speed.x,
+        game.monster.speed.y,
+        game.monster.is_dead as i32 as f32,
+    ];
 
     let mut floor_positions: Vec<(f32, f32)> = game
         .floors
@@ -256,7 +257,7 @@ mod tests {
         for _ in 0..sim_generations {
             let current_population: Vec<_> = networks
                 .iter()
-                .map(|s| CodeSolverIndividual::from_solver(s))
+                .map(CodeSolverIndividual::from_solver)
                 .collect();
             let evolved_population = ga.create_population(&mut rng, &current_population);
             networks = evolved_population

@@ -15,6 +15,12 @@ pub struct BlxACrossover {
     alpha: f32,
 }
 
+impl Default for BlxACrossover {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl BlxACrossover {
     pub fn new() -> Self {
         Self { alpha: 0.0 }

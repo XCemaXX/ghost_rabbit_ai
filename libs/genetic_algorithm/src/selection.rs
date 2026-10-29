@@ -25,6 +25,6 @@ impl SelectionMethod for RouletteWheelSelection {
                 return i;
             }
         }
-        return population.last().unwrap();
+        population.last().unwrap()
     }
 }

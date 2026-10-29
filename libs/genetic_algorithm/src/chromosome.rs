@@ -10,6 +10,10 @@ impl Chromosome {
         self.genes.len()
     }
 
+    pub fn is_empty(&self) -> bool {
+        self.genes.is_empty()
+    }
+
     pub fn iter(&self) -> impl Iterator<Item = &f32> {
         self.genes.iter()
     }

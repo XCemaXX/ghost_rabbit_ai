@@ -24,8 +24,9 @@ impl Options {
         if let Some(sounds_on) = storage.get("sounds_on") {
             options.sounds_on = sounds_on == "t";
         }
-        if let Some(difficulty) = storage.get("difficulty") {
-            options.difficulty = Difficulty::from_str(difficulty.as_str());
+        // A broken value in the storage keeps the default.
+        if let Some(Ok(difficulty)) = storage.get("difficulty").map(|d| d.parse()) {
+            options.difficulty = difficulty;
         }
         options
     }

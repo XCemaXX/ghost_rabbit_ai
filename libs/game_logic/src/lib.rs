@@ -10,6 +10,7 @@ pub use monster::MonsterType;
 use player::{MAX_JUMP_Y, Player};
 use primitives::{Circle, Rectangle, Vec2};
 use rand_trait::GenRandFloat;
+use std::str::FromStr;
 
 const TOP_Y: f32 = 1.0;
 pub const BOT_Y: f32 = -1.0;
@@ -91,10 +92,10 @@ impl<T: GenRandFloat> GameState<T> {
         }
         self.recreate_floors();
 
-        return StepResult {
+        StepResult {
             hit: collided,
             game_over: self.is_game_over(),
-        };
+        }
     }
 
     pub fn move_player_by_x(&mut self, dt: f32, side: MoveDirection) {
@@ -144,7 +145,7 @@ impl<T: GenRandFloat> GameState<T> {
             }
             return true;
         }
-        return false;
+        false
     }
 
     fn create_first_floor_under_player(&mut self) {
@@ -178,13 +179,13 @@ impl<T: GenRandFloat> GameState<T> {
         }
         for floor in &self.floors {
             if collide::is_collide(&self.player.get_bounding_box(), &floor.get_bounding_box())
-                && is_player_over_floor(&self.player, &floor)
+                && is_player_over_floor(&self.player, floor)
             {
                 self.player.set_max_speed();
                 return true;
             }
         }
-        return false;
+        false
     }
 
     fn update_monster(&mut self, dt: f32) {
@@ -214,7 +215,7 @@ impl<T: GenRandFloat> GameState<T> {
 }
 
 fn is_player_over_floor(p: &Player, f: &Floor) -> bool {
-    return p.position.y > (f.position.y + f.size.y / 2.0);
+    p.position.y > (f.position.y + f.size.y / 2.0)
 }
 
 fn create_floor<T: GenRandFloat>(rng: &mut T, floor: &mut Floor, top_floor_y: f32) -> f32 {
@@ -251,13 +252,17 @@ impl Difficulty {
             Difficulty::Unreal => "Unreal",
         }
     }
+}
 
-    pub fn from_str(s: &str) -> Self {
+impl FromStr for Difficulty {
+    type Err = ();
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
-            "Practice" => Difficulty::Practice,
-            "Normal" => Difficulty::Normal,
-            "Unreal" => Difficulty::Unreal,
-            _ => panic!("Not supported difficulty"),
+            "Practice" => Ok(Difficulty::Practice),
+            "Normal" => Ok(Difficulty::Normal),
+            "Unreal" => Ok(Difficulty::Unreal),
+            _ => Err(()),
         }
     }
 }
