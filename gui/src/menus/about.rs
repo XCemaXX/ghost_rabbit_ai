@@ -18,11 +18,10 @@ impl AboutMenu<'_> {
     }
 
     pub fn draw_update(&mut self) -> bool {
-        self.update_size();
-        self.draw_background();
-        self.size_params.draw_border();
+        self.menu.begin_frame();
+        let letterbox = &self.menu.letterbox;
         return macroquad::input::get_keys_down().contains(&macroquad::input::KeyCode::Escape)
-            || self.back_button.draw(&self.menu.size_params);
+            || self.back_button.draw(letterbox);
     }
 }
 

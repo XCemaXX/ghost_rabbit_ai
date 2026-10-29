@@ -1,11 +1,12 @@
+mod draw;
 mod game_screen;
 mod learn_ai;
+mod letterbox;
 mod menus;
 mod options;
 mod rand_gen;
 mod recrord_table;
 mod resources;
-mod square_screen;
 
 use macroquad::prelude::*;
 use quad_snd::Playback;
@@ -125,11 +126,10 @@ async fn run_game_loop(
         let lu = get_time();
         let dt = lu - last_update;
         last_update = lu;
-
-        game_loop.update_size();
+        game_loop.begin_frame();
 
         game_loop.update_game_state_by_input();
-        let move_direction = game_screen::get_move_direction_by_input();
+        let move_direction = game_loop.move_direction_by_input();
         game_loop.move_player(dt, move_direction);
         game_loop.next_step(dt);
         if game_loop.is_game_over() {
@@ -160,7 +160,7 @@ async fn run_ai_game_loop(
         let dt = lu - last_update;
         last_update = lu;
 
-        game_loop.update_size();
+        game_loop.begin_frame();
         game_loop.update_game_state_by_input();
 
         let inputs_ai = generate_inputs_for_ai(&game_loop.game_engine);

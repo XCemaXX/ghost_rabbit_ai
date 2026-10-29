@@ -41,34 +41,25 @@ impl MainMenu<'_> {
     }
 
     pub fn draw_update(&mut self) -> ScreenType {
-        self.update_size();
-        self.draw_background();
-        self.size_params.draw_border();
+        self.menu.begin_frame();
+        let letterbox = &self.menu.letterbox;
         let pressed_keys = get_keys_down();
 
-        if self.newgame_button.draw(&self.menu.size_params)
+        if self.newgame_button.draw(letterbox)
             || pressed_keys.contains(&KeyCode::Space)
             || pressed_keys.contains(&KeyCode::Enter)
             || pressed_keys.contains(&KeyCode::Key1)
         {
             ScreenType::Game
-        } else if self.options_button.draw(&self.menu.size_params)
-            || pressed_keys.contains(&KeyCode::Key2)
-        {
+        } else if self.options_button.draw(letterbox) || pressed_keys.contains(&KeyCode::Key2) {
             ScreenType::OptionsMenu
-        } else if self.records_button.draw(&self.menu.size_params)
-            || pressed_keys.contains(&KeyCode::Key3)
-        {
+        } else if self.records_button.draw(letterbox) || pressed_keys.contains(&KeyCode::Key3) {
             ScreenType::RecordsMenu
-        } else if self.about_button.draw(&self.menu.size_params)
-            || pressed_keys.contains(&KeyCode::Key4)
-        {
+        } else if self.about_button.draw(letterbox) || pressed_keys.contains(&KeyCode::Key4) {
             ScreenType::AboutMenu
-        } else if self.htp_button.draw(&self.menu.size_params)
-            || pressed_keys.contains(&KeyCode::Key5)
-        {
+        } else if self.htp_button.draw(letterbox) || pressed_keys.contains(&KeyCode::Key5) {
             ScreenType::HtpMenu
-        // } else if self.ai_button.draw(&self.menu.size_params) {
+        // } else if self.ai_button.draw(letterbox) {
         //     ScreenType::GameAi
         } else {
             ScreenType::MainMenu

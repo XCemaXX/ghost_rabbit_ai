@@ -1,10 +1,15 @@
-use game_logic::{Difficulty, GameState, MoveDirection, SCREEN_HEIGHT, SCREEN_WEIGHT};
+use game_logic::{
+    Difficulty, GameState, LEFT_X, MoveDirection, RIGHT_X, SCREEN_HEIGHT, SCREEN_WEIGHT,
+};
 
 use crate::rand_gen::RandGen;
 
 use super::options::Options;
 use super::resources::{Backgrounds, Labels, Resources, Sounds};
-use super::square_screen::FixedRatioScreen;
+use crate::draw::{
+    BARS, centered_rect, draw_background, draw_world_text, draw_world_texture, game_letterbox,
+};
+use crate::letterbox::Letterbox;
 
 use macroquad::prelude::*;
 
@@ -23,7 +28,6 @@ enum State {
 
 pub struct GameScreen<'a> {
     pub game_engine: GameState<RandGen>,
-    size_params: FixedRatioScreen,
     resources: &'a Resources,
     state: State,
     state_duration: f64,
@@ -32,6 +36,7 @@ pub struct GameScreen<'a> {
     show_1000: f64,
     buttons: Buttons<'a>,
     is_sounds_on: bool,
+    letterbox: Letterbox,
 }
 
 impl<'a> GameScreen<'a> {
@@ -40,20 +45,21 @@ impl<'a> GameScreen<'a> {
             game_engine: GameState::new(RandGen {}, options.difficulty),
             nick_name: &options.nickname,
             is_sounds_on: options.sounds_on,
-            size_params: FixedRatioScreen::new(SCREEN_WEIGHT / SCREEN_HEIGHT),
             resources,
             state: State::Running,
             state_duration: 0.0,
             best_scores: scores,
             show_1000: -1.0,
             buttons: Buttons::new(resources),
+            letterbox: game_letterbox(),
         };
         gs.play_sound(&Sounds::Start);
         gs
     }
 
-    pub fn update_size(&mut self) {
-        self.size_params = FixedRatioScreen::new(SCREEN_WEIGHT / SCREEN_HEIGHT);
+    /// Call first in each frame: the window can change size at any time.
+    pub fn begin_frame(&mut self) {
+        self.letterbox.update();
     }
 
     pub fn update_game_state_by_input(&mut self) {
@@ -130,7 +136,8 @@ impl<'a> GameScreen<'a> {
     }
 
     pub fn draw(&self) {
-        self.draw_background();
+        let letterbox = &self.letterbox;
+        draw_background(letterbox, self.resources.get_background(&Backgrounds::Game));
         self.draw_records();
         self.draw_buttons();
         self.draw_floors();
@@ -140,118 +147,70 @@ impl<'a> GameScreen<'a> {
         self.draw_1000_score();
         self.draw_nick();
         self.draw_state();
-        self.size_params.draw_border();
+        letterbox.draw_bars(BARS);
     }
 
     fn draw_floors(&self) {
+        let letterbox = &self.letterbox;
         let floor_texture = self
             .resources
             .get_platform_texture(&self.game_engine.difficulty);
         for floor in &self.game_engine.floors {
-            let r = self
-                .size_params
-                .rectangle_transform(floor.position.into(), floor.size.into());
-            //draw_rectangle(f.0, f.1, f.2, f.3, GRAY);
-            draw_texture_ex(
-                &floor_texture,
-                r.x,
-                r.y,
-                WHITE,
-                DrawTextureParams {
-                    dest_size: Some(vec2(r.w, r.h)),
-                    ..Default::default()
-                },
-            );
+            let r = centered_rect(floor.position.into(), floor.size.into());
+            draw_world_texture(letterbox, floor_texture, r);
         }
     }
 
     fn draw_monster(&self) {
+        let letterbox = &self.letterbox;
         let monster = &self.game_engine.monster;
         if !monster.is_dead {
             let monster_texture = self.resources.get_monster_texture(&monster.guise);
-            let r = self
-                .size_params
-                .rectangle_transform(monster.position.into(), monster.size.into());
-            //draw_rectangle(monster.0, monster.1, monster.2, monster.3, RED);
-            draw_texture_ex(
-                &monster_texture,
-                r.x,
-                r.y,
-                WHITE,
-                DrawTextureParams {
-                    dest_size: Some(vec2(r.w, r.h)),
-                    ..Default::default()
-                },
-            );
+            let r = centered_rect(monster.position.into(), monster.size.into());
+            draw_world_texture(letterbox, monster_texture, r);
         }
     }
 
     fn draw_player(&self) {
+        let letterbox = &self.letterbox;
         let player = &self.game_engine.player;
-        let player_pos = self
-            .size_params
-            .circle_transform(player.position.into(), player.radius);
-        //draw_circle(player_pos.x, player_pos.y, player_pos.r, GREEN);
-
-        let r = self.size_params.rectangle_transform(
-            (player.position.x, player.position.y),
-            (
-                (player.radius * 2.) * 25.0 / 10.0,
-                (player.radius * 2.0) * 46.0 / 10.0,
-            ),
-        );
+        let radius = player.radius;
+        // Top-left comes from a taller box than the texture: keeps the old sprite offset.
+        let r = letterbox.rect_to_screen(centered_rect(
+            player.position.into(),
+            ((radius * 2.) * 25.0 / 10.0, (radius * 2.0) * 46.0 / 10.0),
+        ));
         let (texture, mut texture_params) = self.resources.get_player(player.get_stage());
-        texture_params.dest_size =
-            Some(vec2(player_pos.r * 50.0 / 10.0, player_pos.r * 88.0 / 10.0));
+        texture_params.dest_size = Some(vec2(
+            letterbox.len_to_screen(radius * 50.0 / 10.0),
+            letterbox.len_to_screen(radius * 88.0 / 10.0),
+        ));
         draw_texture_ex(texture, r.x, r.y, WHITE, texture_params);
     }
 
-    fn draw_background(&self) {
-        //draw_rectangle_lines(size_params.offset_x, size_params.offset_y, size_params.width, size_params.width, 2.0, BLACK);
-        let r = self
-            .size_params
-            .rectangle_transform((0.0, 0.0), (SCREEN_WEIGHT, SCREEN_HEIGHT));
-        //draw_rectangle(s.0, s.1, s.2, s.3, BLACK);
-        draw_texture_ex(
-            self.resources.get_background(&Backgrounds::Game),
-            r.x,
-            r.y,
-            WHITE,
-            DrawTextureParams {
-                dest_size: Some(vec2(r.w, r.h)),
-                ..Default::default()
-            },
-        );
-    }
-
     fn draw_score(&self) {
-        let coords = self
-            .size_params
-            .get_pixel_coords(SCREEN_WEIGHT / 2.0 * 0.4, SCREEN_HEIGHT / 2.0 * 0.85);
-        draw_text_ex(
+        let letterbox = &self.letterbox;
+        draw_world_text(
+            letterbox,
             &format!("Score: {}", self.get_score()),
-            coords.0,
-            coords.1,
-            TextParams {
-                font_size: 50,
-                font_scale: self.size_params.font_scale,
-                color: YELLOW,
-                font: Some(self.resources.get_font()),
-                ..Default::default()
-            },
+            (SCREEN_WEIGHT / 2.0 * 0.4, SCREEN_HEIGHT / 2.0 * 0.85),
+            YELLOW,
+            self.resources.get_font(),
         );
     }
 
     fn draw_1000_score(&self) {
+        let letterbox = &self.letterbox;
         if self.state != State::Running || self.show_1000 < 0.0 {
             return;
         }
         let (texture, x_to_y) = self.resources.get_label(&Labels::P1000);
         let x = SCREEN_WEIGHT * 0.75;
         let y = x / x_to_y;
-        let r = self
-            .size_params
-            .rectangle_transform((0.0, SCREEN_HEIGHT / 2.0 * 0.75), (x / 2.0, y));
+        let r = letterbox.rect_to_screen(centered_rect(
+            (0.0, SCREEN_HEIGHT / 2.0 * 0.75),
+            (x / 2.0, y),
+        ));
         let frame = (self.state_duration.fract() > 0.5) as i32;
         draw_texture_ex(
             &texture,
@@ -272,62 +231,32 @@ impl<'a> GameScreen<'a> {
     }
 
     fn draw_nick(&self) {
-        let coords = self
-            .size_params
-            .get_pixel_coords(-SCREEN_WEIGHT / 2.0 * 0.8, SCREEN_HEIGHT / 2.0 * 0.85);
-        draw_text_ex(
-            &format!("{}", self.nick_name),
-            coords.0,
-            coords.1,
-            TextParams {
-                font_size: 50,
-                font_scale: self.size_params.font_scale,
-                color: YELLOW,
-                font: Some(self.resources.get_font()),
-                ..Default::default()
-            },
+        let letterbox = &self.letterbox;
+        draw_world_text(
+            letterbox,
+            self.nick_name,
+            (-SCREEN_WEIGHT / 2.0 * 0.8, SCREEN_HEIGHT / 2.0 * 0.85),
+            YELLOW,
+            self.resources.get_font(),
         );
     }
 
     fn draw_state(&self) {
-        match self.state {
-            State::Paused => self.draw_pause(),
-            State::ShowNewRecord => self.draw_win(),
-            State::ShowGameOver => self.draw_game_over(),
-            _ => {}
-        }
-    }
-
-    fn draw_pause(&self) {
-        self.draw_centered_label(&Labels::Pause);
-    }
-
-    fn draw_win(&self) {
-        self.draw_centered_label(&Labels::Win);
-    }
-
-    fn draw_game_over(&self) {
-        self.draw_centered_label(&Labels::GameOver);
-    }
-
-    fn draw_centered_label(&self, label: &Labels) {
-        let (texture, x_to_y) = self.resources.get_label(label);
+        let letterbox = &self.letterbox;
+        let label = match self.state {
+            State::Paused => Labels::Pause,
+            State::ShowNewRecord => Labels::Win,
+            State::ShowGameOver => Labels::GameOver,
+            _ => return,
+        };
+        let (texture, x_to_y) = self.resources.get_label(&label);
         let x = SCREEN_WEIGHT * 0.75;
         let y = x / x_to_y;
-        let r = self.size_params.rectangle_transform((0.0, 0.0), (x, y));
-        draw_texture_ex(
-            &texture,
-            r.x,
-            r.y,
-            WHITE,
-            DrawTextureParams {
-                dest_size: Some(vec2(r.w, r.h)),
-                ..Default::default()
-            },
-        );
+        draw_world_texture(letterbox, texture, centered_rect((0.0, 0.0), (x, y)));
     }
 
     fn draw_records(&self) {
+        let letterbox = &self.letterbox;
         for score in self.best_scores {
             let (in_screen, y) = self.game_engine.get_score_coord(*score);
             if !in_screen {
@@ -336,30 +265,22 @@ impl<'a> GameScreen<'a> {
             let (texture, x_to_y) = self.resources.get_label(&Labels::Record);
             let w = SCREEN_WEIGHT * 0.15;
             let h = w / x_to_y;
-            let r = self
-                .size_params
-                .rectangle_transform((-SCREEN_WEIGHT / 2.0 + w / 2.0, y), (w, h));
-            draw_texture_ex(
-                &texture,
-                r.x,
-                r.y,
-                WHITE,
-                DrawTextureParams {
-                    dest_size: Some(vec2(r.w, r.h)),
-                    ..Default::default()
-                },
-            );
+            let r = centered_rect((-SCREEN_WEIGHT / 2.0 + w / 2.0, y), (w, h));
+            draw_world_texture(letterbox, texture, r);
         }
     }
 
     fn draw_buttons(&self) {
-        self.buttons.draw_exit_button(&self.size_params);
-        self.buttons.draw_pause_button(&self.size_params);
+        let letterbox = &self.letterbox;
+        draw_world_texture(letterbox, self.buttons.exit, self.buttons.exit_rect());
+        draw_world_texture(letterbox, self.buttons.pause, self.buttons.pause_rect());
     }
 
     fn update_pause(&mut self) {
-        let mut change_state = self.buttons.is_pause_button_pressed(&self.size_params)
-            || self.state == State::Paused && is_mouse_button_pressed(MouseButton::Left);
+        let letterbox = &self.letterbox;
+        let click = clicked_at(letterbox);
+        let mut change_state = click.is_some_and(|p| self.buttons.pause_rect().contains(p))
+            || self.state == State::Paused && click.is_some();
         for key in get_keys_pressed() {
             if key == KeyCode::P {
                 change_state = true;
@@ -376,7 +297,9 @@ impl<'a> GameScreen<'a> {
     }
 
     fn update_exit(&mut self) {
-        let mut change_state = self.buttons.is_exit_button_pressed(&self.size_params);
+        let letterbox = &self.letterbox;
+        let mut change_state =
+            clicked_at(letterbox).is_some_and(|p| self.buttons.exit_rect().contains(p));
         for key in get_keys_down() {
             match key {
                 KeyCode::Escape => {
@@ -388,6 +311,38 @@ impl<'a> GameScreen<'a> {
         if change_state {
             self.change_state(State::Finished);
         }
+    }
+
+    pub fn move_direction_by_input(&self) -> MoveDirection {
+        let letterbox = &self.letterbox;
+        // A press on a bar moves the player too: the side bars are natural thumb zones.
+        let mut move_direction = if !is_mouse_button_down(MouseButton::Left) {
+            MoveDirection::None
+        } else if letterbox.mouse_world_unclamped().x > (LEFT_X + RIGHT_X) / 2.0 {
+            MoveDirection::Right
+        } else {
+            MoveDirection::Left
+        };
+        for key in get_keys_down() {
+            match key {
+                KeyCode::Left | KeyCode::A => {
+                    move_direction = if move_direction == MoveDirection::Right {
+                        MoveDirection::None
+                    } else {
+                        MoveDirection::Left
+                    };
+                }
+                KeyCode::Right | KeyCode::D => {
+                    move_direction = if move_direction == MoveDirection::Left {
+                        MoveDirection::None
+                    } else {
+                        MoveDirection::Right
+                    };
+                }
+                _ => {}
+            }
+        }
+        move_direction
     }
 
     fn change_state(&mut self, state: State) {
@@ -426,18 +381,8 @@ impl<'a> Buttons<'a> {
         }
     }
 
-    fn draw_pause_button(&self, size_params: &FixedRatioScreen) {
-        let r = self.get_pause_button_rect(size_params);
-        Self::draw(r, &self.pause);
-    }
-
-    fn draw_exit_button(&self, size_params: &FixedRatioScreen) {
-        let r = self.get_exit_button_rect(size_params);
-        Self::draw(r, &self.exit);
-    }
-
-    fn get_pause_button_rect(&self, size_params: &FixedRatioScreen) -> Rect {
-        size_params.rectangle_transform(
+    fn pause_rect(&self) -> Rect {
+        centered_rect(
             (
                 SCREEN_WEIGHT / 2.0 - self.w / 2.0 * 1.5,
                 -SCREEN_HEIGHT / 2.0 + self.h / 2.0 * 1.5,
@@ -446,8 +391,8 @@ impl<'a> Buttons<'a> {
         )
     }
 
-    fn get_exit_button_rect(&self, size_params: &FixedRatioScreen) -> Rect {
-        size_params.rectangle_transform(
+    fn exit_rect(&self) -> Rect {
+        centered_rect(
             (
                 -SCREEN_WEIGHT / 2.0 + self.w / 2.0 * 1.5,
                 -SCREEN_HEIGHT / 2.0 + self.h / 2.0 * 1.5,
@@ -455,65 +400,13 @@ impl<'a> Buttons<'a> {
             (self.w, self.h),
         )
     }
-
-    fn draw(r: Rect, t: &Texture2D) {
-        draw_texture_ex(
-            &t,
-            r.x,
-            r.y,
-            WHITE,
-            DrawTextureParams {
-                dest_size: Some(vec2(r.w, r.h)),
-                ..Default::default()
-            },
-        );
-    }
-
-    fn is_pause_button_pressed(&self, size_params: &FixedRatioScreen) -> bool {
-        let r = self.get_pause_button_rect(size_params);
-        Self::is_cursor_in(&r) && is_mouse_button_pressed(MouseButton::Left)
-    }
-
-    fn is_exit_button_pressed(&self, size_params: &FixedRatioScreen) -> bool {
-        let r = self.get_exit_button_rect(size_params);
-        Self::is_cursor_in(&r) && is_mouse_button_pressed(MouseButton::Left)
-    }
-
-    fn is_cursor_in(r: &Rect) -> bool {
-        let (x, y) = mouse_position();
-        y > r.y && y < r.y + r.h && x > r.x && x < r.x + r.w
-    }
 }
 
-pub fn get_move_direction_by_input() -> MoveDirection {
-    let (mouse_x, _) = mouse_position();
-    let mut move_direction = if is_mouse_button_down(MouseButton::Left) {
-        if mouse_x * 2.0 > screen_width() {
-            MoveDirection::Right
-        } else {
-            MoveDirection::Left
-        }
+/// Click point in world units; a click on the bars is ignored.
+fn clicked_at(letterbox: &Letterbox) -> Option<Vec2> {
+    if is_mouse_button_pressed(MouseButton::Left) {
+        letterbox.mouse_world()
     } else {
-        MoveDirection::None
-    };
-    for key in get_keys_down() {
-        match key {
-            KeyCode::Left | KeyCode::A => {
-                move_direction = if move_direction == MoveDirection::Right {
-                    MoveDirection::None
-                } else {
-                    MoveDirection::Left
-                };
-            }
-            KeyCode::Right | KeyCode::D => {
-                move_direction = if move_direction == MoveDirection::Left {
-                    MoveDirection::None
-                } else {
-                    MoveDirection::Right
-                };
-            }
-            _ => {}
-        }
+        None
     }
-    move_direction
 }

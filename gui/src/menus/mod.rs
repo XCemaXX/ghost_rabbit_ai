@@ -6,11 +6,10 @@ mod options;
 mod records;
 
 use super::resources::{Backgrounds, Resources};
-use super::square_screen::FixedRatioScreen;
 use super::{Options, RecordTables};
+use crate::draw::{draw_background, game_letterbox};
+use crate::letterbox::Letterbox;
 use game_logic::{SCREEN_HEIGHT, SCREEN_WEIGHT};
-
-use macroquad::prelude::*;
 
 pub use about::AboutMenu;
 pub use htp::HowToPlayMenu;
@@ -19,7 +18,7 @@ pub use options::OptionsMenu;
 pub use records::RecordsMenu;
 
 pub struct Menu<'a> {
-    size_params: FixedRatioScreen,
+    letterbox: Letterbox,
     resources: &'a Resources,
     background: Backgrounds,
 }
@@ -27,29 +26,18 @@ pub struct Menu<'a> {
 impl Menu<'_> {
     fn new<'a>(resources: &'a Resources, background: Backgrounds) -> Menu<'a> {
         Menu {
-            size_params: FixedRatioScreen::new(SCREEN_WEIGHT / SCREEN_HEIGHT),
+            letterbox: game_letterbox(),
             resources,
             background,
         }
     }
 
-    pub fn update_size(&mut self) {
-        self.size_params = FixedRatioScreen::new(SCREEN_WEIGHT / SCREEN_HEIGHT);
-    }
-
-    fn draw_background(&self) {
-        let r = self
-            .size_params
-            .rectangle_transform((0.0, 0.0), (SCREEN_WEIGHT, SCREEN_HEIGHT));
-        draw_texture_ex(
+    /// Call first in each frame: the window can change size at any time.
+    fn begin_frame(&mut self) {
+        self.letterbox.update();
+        draw_background(
+            &self.letterbox,
             self.resources.get_background(&self.background),
-            r.x,
-            r.y,
-            WHITE,
-            DrawTextureParams {
-                dest_size: Some(vec2(r.w, r.h)),
-                ..Default::default()
-            },
         );
     }
 }
