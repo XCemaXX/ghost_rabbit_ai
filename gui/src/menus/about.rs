@@ -13,15 +13,15 @@ impl AboutMenu<'_> {
     pub fn new<'a>(resources: &'a Resources) -> AboutMenu<'a> {
         AboutMenu {
             menu: Menu::new(resources, Backgrounds::About),
-            back_button: create_button(&resources, &Buttons::Back, (0.0, -0.8)),
+            back_button: create_button(resources, &Buttons::Back, (0.0, -0.8)),
         }
     }
 
     pub fn draw_update(&mut self) -> bool {
         self.menu.begin_frame();
         let letterbox = &self.menu.letterbox;
-        return macroquad::input::get_keys_down().contains(&macroquad::input::KeyCode::Escape)
-            || self.back_button.draw(letterbox);
+        macroquad::input::get_keys_down().contains(&macroquad::input::KeyCode::Escape)
+            || self.back_button.draw(letterbox)
     }
 }
 

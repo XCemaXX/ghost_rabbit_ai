@@ -45,13 +45,13 @@ impl Player {
         let new_pos = self.position.y + self.speed.y * dt;
         let d_pos = new_pos - self.y_move_limit;
 
-        return if d_pos > 0.0 {
+        if d_pos > 0.0 {
             self.position.y = self.y_move_limit;
             d_pos
         } else {
             self.position.y = new_pos;
             0.0
-        };
+        }
     }
 
     pub fn get_stage(&self) -> usize {

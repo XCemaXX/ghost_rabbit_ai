@@ -13,7 +13,7 @@ pub struct GaussianMutation {
 
 impl GaussianMutation {
     pub fn new(probability_to_change_genes: f32, change_magnitude: f32) -> Self {
-        assert!(probability_to_change_genes >= 0.0 && probability_to_change_genes <= 1.0);
+        assert!((0.0..=1.0).contains(&probability_to_change_genes));
         Self {
             probability_to_change_genes,
             change_magnitude,

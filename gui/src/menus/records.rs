@@ -24,8 +24,8 @@ impl RecordsMenu<'_> {
     ) -> RecordsMenu<'a> {
         RecordsMenu {
             menu: Menu::new(resources, Backgrounds::Records),
-            back_button: create_button(&resources, &Buttons::Back, (0.0, -0.8)),
-            clear_button: create_button(&resources, &Buttons::ClearRecords, (0.38, -0.63)),
+            back_button: create_button(resources, &Buttons::Back, (0.0, -0.8)),
+            clear_button: create_button(resources, &Buttons::ClearRecords, (0.38, -0.63)),
             record_tables,
         }
     }
@@ -37,8 +37,8 @@ impl RecordsMenu<'_> {
         if self.clear_button.draw(letterbox) {
             self.record_tables.set_default();
         }
-        return macroquad::input::get_keys_down().contains(&macroquad::input::KeyCode::Escape)
-            || self.back_button.draw(letterbox);
+        macroquad::input::get_keys_down().contains(&macroquad::input::KeyCode::Escape)
+            || self.back_button.draw(letterbox)
     }
 
     fn draw_records(&self) {
