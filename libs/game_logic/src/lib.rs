@@ -7,7 +7,7 @@ mod primitives;
 use floor::Floor;
 use monster::Monster;
 pub use monster::MonsterType;
-use player::{MAX_JUMP_Y, Player};
+pub use player::{ACCELERATION, MAX_JUMP_Y, MAX_SPEED, Player, X_SPEED};
 use primitives::{Circle, Rectangle, Vec2};
 use rand_trait::GenRandFloat;
 use std::str::FromStr;
@@ -102,7 +102,7 @@ impl<T: GenRandFloat> GameState<T> {
         if side == MoveDirection::None {
             return;
         }
-        let mut ds = dt * 60.0 * 7.0 / 420.0;
+        let mut ds = dt * X_SPEED;
         if side == MoveDirection::Left {
             ds = -ds;
         }
@@ -112,6 +112,10 @@ impl<T: GenRandFloat> GameState<T> {
         } else if self.player.position.x > RIGHT_X {
             self.player.position.x = LEFT_X + (self.player.position.x - RIGHT_X);
         }
+    }
+
+    pub fn score_f(&self) -> f32 {
+        self.score
     }
 
     pub fn get_score(&self) -> usize {

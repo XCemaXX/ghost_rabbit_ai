@@ -5,7 +5,7 @@ use rand_trait::GenRandFloat;
 const MONSTER_WIDTH: f32 = SCREEN_WEIGHT * (56.0 - 5.0) / 420.0;
 const MONSTER_HIGHT: f32 = SCREEN_HEIGHT * (68.0 - 5.0) / 640.0;
 
-#[derive(PartialEq, Hash, Eq)]
+#[derive(PartialEq, Hash, Eq, Clone)]
 pub enum MonsterType {
     Mummy,
     Jason,
@@ -13,6 +13,7 @@ pub enum MonsterType {
     Frankenstein,
 }
 
+#[derive(Clone)]
 pub struct Monster {
     pub position: Vec2,
     pub size: Vec2,
@@ -108,7 +109,8 @@ fn gen_pos<T: GenRandFloat>(rng: &mut T, player_pos: &Vec2, speed_abs: f32) -> (
             }
         }
     };
-    let x_speed = speed_abs * (player_pos.x - pos.x) / (SCREEN_WEIGHT);
+    // Side spawns are farther than SCREEN_WEIGHT from the far edge; without the clamp sqrt gets a negative.
+    let x_speed = (speed_abs * (player_pos.x - pos.x) / SCREEN_WEIGHT).clamp(-speed_abs, speed_abs);
     let speed = Vec2 {
         x: x_speed,
         y: -f32::sqrt(speed_abs * speed_abs - x_speed * x_speed),
