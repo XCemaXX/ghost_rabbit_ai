@@ -1,11 +1,13 @@
 use super::SCREEN_HEIGHT;
 use super::primitives::{Circle, Vec2};
 
-const SECS_TO_JUMP_UP: f32 = 0.6;
+pub const X_SPEED: f32 = 1.0;
+pub const SECS_TO_JUMP_UP: f32 = 0.6;
 pub const MAX_JUMP_Y: f32 = SCREEN_HEIGHT / 2.0 * 0.9;
-const ACCELERATION: f32 = -MAX_JUMP_Y * 2.0 / SECS_TO_JUMP_UP / SECS_TO_JUMP_UP;
-const MAX_SPEED: f32 = MAX_JUMP_Y / SECS_TO_JUMP_UP - ACCELERATION * SECS_TO_JUMP_UP / 2.0;
+pub const ACCELERATION: f32 = -MAX_JUMP_Y * 2.0 / SECS_TO_JUMP_UP / SECS_TO_JUMP_UP;
+pub const MAX_SPEED: f32 = MAX_JUMP_Y / SECS_TO_JUMP_UP - ACCELERATION * SECS_TO_JUMP_UP / 2.0;
 
+#[derive(Clone)]
 pub struct Player {
     pub position: Vec2,
     pub radius: f32,

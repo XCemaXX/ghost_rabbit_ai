@@ -4,6 +4,7 @@ use super::{SCREEN_HEIGHT, SCREEN_WEIGHT};
 const FLOOR_WIDTH: f32 = SCREEN_WEIGHT / 6.3;
 const FLOOR_HIGHT: f32 = SCREEN_HEIGHT / 32.0;
 
+#[derive(Clone)]
 pub struct Floor {
     pub position: Vec2,
     pub size: Vec2,
