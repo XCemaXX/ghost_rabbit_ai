@@ -7,6 +7,7 @@ pub struct Neuron {
 }
 
 impl Neuron {
+    // Weighted sum, before the layer's activation.
     pub fn propagate(&self, inputs: &[f32]) -> f32 {
         assert_eq!(inputs.len(), self.weights.len());
         let output = inputs
@@ -15,13 +16,18 @@ impl Neuron {
             .map(|(input, weight)| input * weight)
             .sum::<f32>();
 
-        (self.bias + output).max(0.0)
+        self.bias + output
     }
 
+    // Variance 1 / input_size: the weighted sum stays near 1, so deep nets do not saturate.
+    // The random bias keeps a GA start population diverse.
     pub fn new<T: GenRandFloat>(rng: &mut T, input_size: usize) -> Self {
-        let bias = rng.gen_range(-1.0..=1.0);
+        let limit = (3.0 / input_size as f32).sqrt();
+        let bias = rng.gen_range(-limit..=limit);
 
-        let weights = (0..input_size).map(|_| rng.gen_range(-1.0..=1.0)).collect();
+        let weights = (0..input_size)
+            .map(|_| rng.gen_range(-limit..=limit))
+            .collect();
 
         Self { bias, weights }
     }

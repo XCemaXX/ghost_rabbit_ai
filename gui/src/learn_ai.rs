@@ -1,7 +1,7 @@
 use crate::rand_gen::RandGen;
 use game_logic::{Difficulty, GameState, MoveDirection};
 use genetic_algorithm::{self as ga, GeneticAlgorithm};
-use neural_network::{LayerTopology, Network};
+use neural_network::{Activation, LayerTopology, Network};
 
 const SIMULATION_SECS: f32 = 7.0; // CHANGE. NEED TO SETUP
 const DT: f32 = 1.0 / 60.0;
@@ -9,9 +9,18 @@ const SIMULATION_STEPS: usize = (SIMULATION_SECS / DT) as usize;
 const SIMULATION_GENERATIONS: usize = 500; // CHANGE. NEED TO SETUP
 const POPULATION_SIZE: usize = 100; // CHANGE. NEED TO SETUP
 const LAYERS_TOPOLOGY: [LayerTopology; 3] = [
-    LayerTopology { neurons: 4 + 5 + 4 }, //+ 24
-    LayerTopology { neurons: 5 },         // CHANGE. NEED TO SETUP. try 8-18
-    LayerTopology { neurons: 2 },
+    LayerTopology {
+        neurons: 4 + 5 + 4,
+        activation: Activation::Relu,
+    }, //+ 24
+    LayerTopology {
+        neurons: 5,
+        activation: Activation::Relu,
+    }, // CHANGE. NEED TO SETUP. try 8-18
+    LayerTopology {
+        neurons: 2,
+        activation: Activation::Relu,
+    },
 ];
 
 struct AiPlayer {
@@ -237,8 +246,16 @@ mod tests {
         let pop_size = 100;
         let sim_generations = 100;
         let mut rng = RandGen {};
-        let topology: [LayerTopology; 2] =
-            [LayerTopology { neurons: 4 }, LayerTopology { neurons: 4 }];
+        let topology: [LayerTopology; 2] = [
+            LayerTopology {
+                neurons: 4,
+                activation: Activation::Relu,
+            },
+            LayerTopology {
+                neurons: 4,
+                activation: Activation::Relu,
+            },
+        ];
         let mut networks = Vec::new();
 
         for _ in 0..pop_size {
