@@ -4,6 +4,7 @@ resolver = "3"
 members = [
     "libs/*",
     "gui",
+    "tools/bot_train",
 ]
 
 [profile.release]
