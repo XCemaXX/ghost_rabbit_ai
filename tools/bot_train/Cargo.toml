@@ -1,0 +1,12 @@
+[package]
+name = "bot_train"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[dependencies]
+bot = { path = "../../libs/bot" }
+genetic_algorithm = { path = "../../libs/genetic_algorithm" }
+neural_network = { path = "../../libs/neural_network" }
+rayon = "1.12.0"
+
