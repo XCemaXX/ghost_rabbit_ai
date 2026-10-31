@@ -3,15 +3,15 @@ mod crossover;
 mod mutation;
 mod selection;
 
-use crossover::CrossoverMethod;
-use mutation::MutationMethod;
+pub use crossover::CrossoverMethod;
+pub use mutation::MutationMethod;
 use rand_trait::GenRandFloat;
-use selection::SelectionMethod;
+pub use selection::SelectionMethod;
 
 pub use chromosome::Chromosome;
-pub use crossover::BlxACrossover;
-pub use mutation::GaussianMutation;
-pub use selection::RouletteWheelSelection;
+pub use crossover::{BlxACrossover, NoCrossover};
+pub use mutation::{GaussianMutation, UniformMutation};
+pub use selection::{RouletteWheelSelection, TournamentSelection};
 
 pub trait Individual {
     fn fitness(&self) -> f32;
@@ -23,6 +23,8 @@ pub struct GeneticAlgorithm<S, C, M> {
     selection_method: S,
     crossover_method: C,
     mutation_method: M,
+    // Share of the best individuals copied unchanged to the next population.
+    elite_fraction: f32,
 }
 
 impl<S: SelectionMethod, C: CrossoverMethod, M: MutationMethod> GeneticAlgorithm<S, C, M> {
@@ -31,7 +33,14 @@ impl<S: SelectionMethod, C: CrossoverMethod, M: MutationMethod> GeneticAlgorithm
             selection_method,
             crossover_method,
             mutation_method,
+            elite_fraction: 0.3,
         }
+    }
+
+    pub fn with_elite_fraction(mut self, elite_fraction: f32) -> Self {
+        assert!((0.0..1.0).contains(&elite_fraction));
+        self.elite_fraction = elite_fraction;
+        self
     }
 
     pub fn create_population<I: Individual, R: GenRandFloat>(
@@ -42,7 +51,7 @@ impl<S: SelectionMethod, C: CrossoverMethod, M: MutationMethod> GeneticAlgorithm
         assert!(!population.is_empty());
         let mut next_population = Vec::new();
 
-        let parents_count = (population.len() as f32 * 0.3) as usize;
+        let parents_count = (population.len() as f32 * self.elite_fraction) as usize;
         next_population.append(&mut self.get_top_parents(population, parents_count));
 
         self.crossover_method.setup(rng);
