@@ -1,4 +1,5 @@
 mod activation;
+mod batch;
 mod layer;
 mod neuron;
 pub mod train;

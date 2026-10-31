@@ -4,6 +4,7 @@
 There is legacy C# XNA version: https://github.com/XCemaXX/ghost_rabbit_ai/tree/master/legacy
 
 Check runnable version online: [Ghost Rabbit](https://xcemaxx.github.io/ghost_rabbit_ai)
+The game needs WebAssembly SIMD: Chrome 91+, Firefox 89+, Safari 16.4+ (iOS 16.4+).
 
 # Building and running
 The build is in release mode by default. Pass `--dev` for a debug build.
