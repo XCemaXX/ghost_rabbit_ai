@@ -10,19 +10,16 @@ pub struct Layer {
 
 impl Layer {
     pub fn propagate(&self, inputs: Vec<f32>) -> Vec<f32> {
-        self.neurons
-            .iter()
-            .map(|neuron| self.activation.apply(neuron.propagate(&inputs)))
-            .collect()
+        let mut outputs = Vec::new();
+        self.propagate_into(&inputs, &mut outputs);
+        outputs
     }
 
+    // Activation in a separate pass: a loop over a slice lets the compiler use SIMD.
     pub fn propagate_into(&self, inputs: &[f32], outputs: &mut Vec<f32>) {
         outputs.clear();
-        outputs.extend(
-            self.neurons
-                .iter()
-                .map(|neuron| self.activation.apply(neuron.propagate(inputs))),
-        );
+        outputs.extend(self.neurons.iter().map(|neuron| neuron.propagate(inputs)));
+        self.activation.apply_all(outputs);
     }
 
     // `grad` is this layer's part of the network gradient, in the order of `weights()`.
