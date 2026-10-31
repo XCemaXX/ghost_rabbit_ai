@@ -84,7 +84,7 @@ pub fn learn_ai(difficulty: Difficulty) -> Network {
     let mut ga = GeneticAlgorithm::new(
         ga::RouletteWheelSelection,
         ga::BlxACrossover::new(),
-        ga::GaussianMutation::new(0.01, 0.03),
+        ga::UniformMutation::new(0.01, 0.03),
     ); // CHANGE. NEED TO SETUP
 
     let mut rng = RandGen {};
@@ -268,7 +268,7 @@ mod tests {
         let mut ga = GeneticAlgorithm::new(
             ga::RouletteWheelSelection,
             ga::BlxACrossover::new(),
-            ga::GaussianMutation::new(0.01, 0.03),
+            ga::UniformMutation::new(0.01, 0.03),
         );
 
         for _ in 0..sim_generations {

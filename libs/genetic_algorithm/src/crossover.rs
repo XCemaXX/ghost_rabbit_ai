@@ -57,3 +57,19 @@ impl CrossoverMethod for BlxACrossover {
         self.alpha = rng.gen_range(0.0..=1.0);
     }
 }
+
+// The child is a copy of the first parent: only mutation changes genes.
+pub struct NoCrossover;
+
+impl CrossoverMethod for NoCrossover {
+    fn crossover<R: GenRandFloat>(
+        &self,
+        _rng: &mut R,
+        parent_a: &Chromosome,
+        _parent_b: &Chromosome,
+    ) -> Chromosome {
+        parent_a.clone()
+    }
+
+    fn setup<R: GenRandFloat>(&mut self, _rng: &mut R) {}
+}
