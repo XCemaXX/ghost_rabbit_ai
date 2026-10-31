@@ -241,12 +241,11 @@ dependencies = [
 
 [[package]]
 name = "ghost_rabbit_ai"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
+ "bot",
  "game_logic",
- "genetic_algorithm",
  "macroquad",
- "neural_network",
  "quad-snd",
  "quad-storage",
  "rand_trait",

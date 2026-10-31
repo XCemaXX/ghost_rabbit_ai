@@ -18,12 +18,12 @@ The build is in release mode by default. Pass `--dev` for a debug build.
   The macroquad bundle does not export `js_object` globally, and `quad_storage.js` needs it.
 
 Native tests on Linux need ALSA headers: `sudo apt install libasound2-dev`. Then run `cargo test --workspace`.
-The slow AI training test is ignored by default: `./gui/run_test.sh`.
 
 # Show
 [Check by yourself online](https://xcemaxx.github.io/ghost_rabbit_ai)  
 <img src="./docs/ghost_rabbit_gameplay.gif" width="300" height="457" />
 
 # AI
-There was an attempt to make AI to play in this game. It failed.
-You can find sources of a genetic algorithm and neural network in libs folder.
+The AI button in the main menu starts a bot. It plays Unreal and starts again after each death.
+The bot sees only the screen. How it is built and trained: `docs/ai_research.md`.
+Retrain the weights in `resources/bot/`: `cargo run --release -p bot_train`.

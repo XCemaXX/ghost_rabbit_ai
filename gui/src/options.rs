@@ -1,4 +1,5 @@
 use game_logic::Difficulty;
+#[derive(Clone)]
 pub struct Options {
     pub nickname: String,
     pub music_on: bool,
