@@ -114,6 +114,25 @@ impl<T: GenRandFloat> GameState<T> {
         }
     }
 
+    pub fn fork<U: GenRandFloat>(&self, rng: U) -> GameState<U> {
+        GameState {
+            floors: self.floors.clone(),
+            player: self.player.clone(),
+            monster: self.monster.clone(),
+            rng,
+            difficulty: self.difficulty,
+            monster_recreation_timer: self.monster_recreation_timer,
+            score: self.score,
+        }
+    }
+
+    // Fork for planning: no future monster spawns are known.
+    pub fn fork_plan<U: GenRandFloat>(&self, rng: U) -> GameState<U> {
+        let mut g = self.fork(rng);
+        g.monster_recreation_timer = f32::MAX;
+        g
+    }
+
     pub fn score_f(&self) -> f32 {
         self.score
     }
