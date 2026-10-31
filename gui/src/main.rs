@@ -1,6 +1,5 @@
 mod draw;
 mod game_screen;
-mod learn_ai;
 mod letterbox;
 mod menus;
 mod options;
@@ -16,8 +15,6 @@ use menus::ScreenType;
 use options::Options;
 use recrord_table::RecordTables;
 use resources::Resources;
-
-use learn_ai::{generate_inputs_for_ai, get_next_move_by_ai, learn_ai};
 
 fn window_conf() -> Conf {
     Conf {
@@ -36,10 +33,12 @@ async fn main() {
     loop {
         current_screen = match current_screen {
             ScreenType::Game => {
-                if options.music_on && background_music.is_none() {
-                    background_music = Some(resources.play_background());
-                }
+                start_music(&resources, &options, &mut background_music);
                 run_game_loop(&resources, &mut record_tables, &options).await
+            }
+            ScreenType::GameAi => {
+                start_music(&resources, &options, &mut background_music);
+                run_ai_game_loop(&resources, &record_tables, &options).await
             }
             ScreenType::MainMenu => run_main_menu_loop(&resources).await,
             ScreenType::RecordsMenu => run_records_menu_loop(&resources, &mut record_tables).await,
@@ -54,8 +53,13 @@ async fn main() {
                 };
                 r
             }
-            ScreenType::GameAi => run_ai_game_loop(&resources, &mut record_tables, &options).await,
         };
+    }
+}
+
+fn start_music(resources: &Resources, options: &Options, music: &mut Option<Playback>) {
+    if options.music_on && music.is_none() {
+        *music = Some(resources.play_background());
     }
 }
 
@@ -146,31 +150,44 @@ async fn run_game_loop(
 
 async fn run_ai_game_loop(
     resources: &Resources,
-    record_tables: &mut RecordTables,
+    record_tables: &RecordTables,
     options: &Options,
 ) -> ScreenType {
-    let difficulty = Difficulty::Unreal;
-    let ai_player = learn_ai(difficulty);
-    let mut last_update = get_time();
-    let record_table = record_tables.get_table(&difficulty);
-    let mut game_loop = game_screen::GameScreen::new(resources, options, &record_table.scores);
+    let options = Options {
+        difficulty: Difficulty::Unreal,
+        ..options.clone()
+    };
+    let vision = bot::from_bytes(
+        &bot::vision_topology(),
+        include_bytes!("../../resources/bot/vision_r7.bin"),
+    );
+    let policy = bot::policy_at_generation(
+        include_bytes!("../../resources/bot/policy_r7.bin"),
+        bot::MAX_GENERATION,
+    );
+    let record_table = record_tables.get_table(&options.difficulty);
     loop {
-        let lu = get_time();
-        let dt = lu - last_update;
-        last_update = lu;
+        let mut player = bot::Bot::new(&vision, &policy);
+        let mut game_loop = game_screen::GameScreen::new(resources, &options, &record_table.scores);
+        let mut last_update = get_time();
+        loop {
+            let lu = get_time();
+            let dt = lu - last_update;
+            last_update = lu;
+            game_loop.begin_frame();
 
-        game_loop.begin_frame();
-        game_loop.update_game_state_by_input();
-
-        let inputs_ai = generate_inputs_for_ai(&game_loop.game_engine);
-        let move_direction = get_next_move_by_ai(&ai_player, inputs_ai);
-
-        game_loop.advance(dt, move_direction);
-        if game_loop.is_game_over() {
-            break;
+            game_loop.update_game_state_by_input();
+            // Here the game ends only by the exit button.
+            if game_loop.is_game_over() {
+                return ScreenType::MainMenu;
+            }
+            let move_direction = player.act(&game_loop.game_engine);
+            game_loop.advance(dt, move_direction);
+            if game_loop.is_game_over() {
+                break;
+            }
+            game_loop.draw();
+            next_frame().await
         }
-        game_loop.draw();
-        next_frame().await
     }
-    ScreenType::MainMenu
 }
