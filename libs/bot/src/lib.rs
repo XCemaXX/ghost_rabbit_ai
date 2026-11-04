@@ -11,7 +11,8 @@ pub use features::{INPUTS, features, wrap_dx};
 pub use rng::Rng;
 
 use game_logic::{GameState, MoveDirection};
-use neural_network::{Activation, Buffers, LayerTopology, Network, train::sigmoid};
+pub use neural_network::Network;
+use neural_network::{Activation, Buffers, LayerTopology, train::sigmoid};
 use rand_trait::GenRandFloat;
 
 pub const VISION_OUTPUTS: usize = 9;
