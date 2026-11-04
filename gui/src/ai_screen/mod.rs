@@ -1,3 +1,4 @@
+mod models;
 mod panel;
 mod widgets;
 
@@ -10,8 +11,11 @@ use crate::menus::ScreenType;
 use crate::options::Options;
 use crate::recrord_table::RecordTables;
 use crate::resources::Resources;
+use models::{Scores, Selection};
 use panel::Panel;
-use widgets::Ui;
+use widgets::{Align, Ui, VALUE};
+
+const TEXT_SIZE: f32 = SCREEN_WEIGHT / 16.0;
 
 // The bot plays Unreal, as in training, and starts again after each death.
 pub async fn run(
@@ -20,25 +24,20 @@ pub async fn run(
     options: &Options,
 ) -> ScreenType {
     let options = Options {
+        nickname: "AiBot".to_owned(),
         difficulty: Difficulty::Unreal,
         ..options.clone()
     };
-    let vision = bot::from_bytes(
-        &bot::vision_topology(),
-        include_bytes!("../../../resources/bot/vision_r7.bin"),
-    );
-    let policy = bot::policy_at_generation(
-        include_bytes!("../../../resources/bot/policy_r7.bin"),
-        bot::MAX_GENERATION,
-    );
     let record_table = record_tables.get_table(&options.difficulty);
     // Two game fields side by side: the game on the left, the panel on the right.
     let mut screen = Letterbox::new(
         Rect::new(0.0, 0.0, 2.0 * SCREEN_WEIGHT, SCREEN_HEIGHT),
         false,
     );
+    let scores = Scores::new();
     let mut panel = Panel::new();
     loop {
+        let (vision, policy) = models::load(panel.selection());
         let mut player = bot::Bot::new(&vision, &policy);
         let mut game_loop = GameScreen::new(resources, &options, &record_table.scores);
         let mut last_update = get_time();
@@ -55,17 +54,39 @@ pub async fn run(
             if game_loop.is_game_over() {
                 return ScreenType::MainMenu;
             }
-            let move_direction = player.act(&game_loop.game_engine);
-            game_loop.advance(dt, move_direction);
+            // Whole steps, not a longer dt: the bot must decide as often as in training.
+            for _ in 0..panel.speed() {
+                let move_direction = player.act(&game_loop.game_engine);
+                game_loop.advance(dt, move_direction);
+            }
             if game_loop.is_game_over() {
                 break;
             }
             game_loop.draw();
-            panel.draw(&Ui {
+            let ui = Ui {
                 screen: &screen,
                 resources,
-            });
-            next_frame().await
+            };
+            draw_models(&ui, panel.selection());
+            let changed = panel.draw(&ui, &scores);
+            next_frame().await;
+            if changed {
+                break;
+            }
         }
     }
+}
+
+// In the game field, between the exit and pause buttons.
+fn draw_models(ui: &Ui, s: Selection) {
+    let r = Rect::new(
+        SCREEN_WEIGHT * 0.14,
+        SCREEN_HEIGHT * 0.93,
+        SCREEN_WEIGHT * 0.72,
+        SCREEN_HEIGHT * 0.06,
+    );
+    let vision = format!("Vision: r{}", s.round);
+    let control = format!("Control: g{}", s.generation);
+    ui.text(r, &vision, TEXT_SIZE, VALUE, Align::Left);
+    ui.text(r, &control, TEXT_SIZE, VALUE, Align::Right);
 }
