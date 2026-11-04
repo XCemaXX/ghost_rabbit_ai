@@ -68,6 +68,11 @@ impl<'a> GameScreen<'a> {
         self.letterbox.update();
     }
 
+    /// `begin_frame` for a game that takes only a part of the window.
+    pub fn begin_frame_in(&mut self, area: Rect) {
+        self.letterbox.update_in(area);
+    }
+
     pub fn update_game_state_by_input(&mut self) {
         if self.state != State::Running && self.state != State::Paused {
             return;
