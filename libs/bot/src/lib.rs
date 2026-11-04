@@ -3,6 +3,7 @@
 // `policy` reads these 9 numbers and its previous move and picks the move.
 mod climb;
 mod features;
+pub mod job;
 mod rng;
 pub mod train;
 

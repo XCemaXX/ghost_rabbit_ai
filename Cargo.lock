@@ -49,6 +49,7 @@ name = "bot"
 version = "0.1.0"
 dependencies = [
  "game_logic",
+ "genetic_algorithm",
  "neural_network",
  "rand_trait",
 ]
@@ -58,7 +59,6 @@ name = "bot_train"
 version = "0.1.0"
 dependencies = [
  "bot",
- "genetic_algorithm",
  "neural_network",
  "rayon",
 ]
