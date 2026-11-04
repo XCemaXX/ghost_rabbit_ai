@@ -1,3 +1,4 @@
+mod ai_screen;
 mod draw;
 mod game_screen;
 mod letterbox;
@@ -38,7 +39,7 @@ async fn main() {
             }
             ScreenType::GameAi => {
                 start_music(&resources, &options, &mut background_music);
-                run_ai_game_loop(&resources, &record_tables, &options).await
+                ai_screen::run(&resources, &record_tables, &options).await
             }
             ScreenType::MainMenu => run_main_menu_loop(&resources).await,
             ScreenType::RecordsMenu => run_records_menu_loop(&resources, &mut record_tables).await,
@@ -146,48 +147,4 @@ async fn run_game_loop(
     }
     record_tables.insert(&difficulty, options.nickname.clone(), score);
     ScreenType::RecordsMenu
-}
-
-async fn run_ai_game_loop(
-    resources: &Resources,
-    record_tables: &RecordTables,
-    options: &Options,
-) -> ScreenType {
-    let options = Options {
-        difficulty: Difficulty::Unreal,
-        ..options.clone()
-    };
-    let vision = bot::from_bytes(
-        &bot::vision_topology(),
-        include_bytes!("../../resources/bot/vision_r7.bin"),
-    );
-    let policy = bot::policy_at_generation(
-        include_bytes!("../../resources/bot/policy_r7.bin"),
-        bot::MAX_GENERATION,
-    );
-    let record_table = record_tables.get_table(&options.difficulty);
-    loop {
-        let mut player = bot::Bot::new(&vision, &policy);
-        let mut game_loop = game_screen::GameScreen::new(resources, &options, &record_table.scores);
-        let mut last_update = get_time();
-        loop {
-            let lu = get_time();
-            let dt = lu - last_update;
-            last_update = lu;
-            game_loop.begin_frame();
-
-            game_loop.update_game_state_by_input();
-            // Here the game ends only by the exit button.
-            if game_loop.is_game_over() {
-                return ScreenType::MainMenu;
-            }
-            let move_direction = player.act(&game_loop.game_engine);
-            game_loop.advance(dt, move_direction);
-            if game_loop.is_game_over() {
-                break;
-            }
-            game_loop.draw();
-            next_frame().await
-        }
-    }
 }
