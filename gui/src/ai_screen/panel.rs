@@ -1,7 +1,9 @@
 use game_logic::{SCREEN_HEIGHT, SCREEN_WEIGHT};
 use macroquad::prelude::*;
 
-use super::models::{GENERATIONS, ROUNDS, Scores, Selection};
+use bot::job::POINTS;
+
+use super::models::{Models, ROUNDS, Selection};
 use super::widgets::{Align, LINE, TEXT, Ui, VALUE};
 use crate::resources::Backgrounds;
 
@@ -29,38 +31,49 @@ const PROGRESS_H: f32 = SCREEN_HEIGHT * 0.018;
 const BIG: f32 = SCREEN_WEIGHT / 12.0;
 const SMALL: f32 = SCREEN_WEIGHT / 17.0;
 
+/// What the panel asks the screen to do.
+#[derive(PartialEq, Eq)]
+pub enum Action {
+    None,
+    NewGame,
+    Train,
+    Stop,
+}
+
+/// What a card shows in this frame.
+struct View {
+    points: Vec<usize>,
+    my_enabled: bool,
+    score: Option<u32>,
+    note: Option<String>,
+    status: &'static str,
+    progress: f32,
+    training: bool,
+    next: Option<usize>,
+    can_train: bool,
+}
+
 struct Card {
     title: &'static str,
     unit: &'static str,
-    points: &'static [usize],
     color: Color,
     my_model: bool,
     index: usize,
 }
 
 impl Card {
-    fn new(
-        title: &'static str,
-        unit: &'static str,
-        points: &'static [usize],
-        color: Color,
-    ) -> Self {
+    fn new(title: &'static str, unit: &'static str, color: Color, last: usize) -> Self {
         Self {
             title,
             unit,
-            points,
             color,
             my_model: false,
-            index: points.len() - 1,
+            index: last,
         }
     }
 
-    fn value(&self) -> usize {
-        self.points[self.index]
-    }
-
-    // Returns true if the value changed. `score` belongs to the pair of nets, so one card shows it.
-    fn draw(&mut self, ui: &Ui, r: Rect, score: Option<u32>) -> bool {
+    fn draw(&mut self, ui: &Ui, r: Rect, view: &View) -> Action {
+        let mut action = Action::None;
         ui.fill(Rect::new(r.x, r.y, r.w, GAP / 4.0), LINE);
         let mut y = r.y + GAP;
         let mut row = |h: f32| {
@@ -71,52 +84,73 @@ impl Card {
 
         let title = row(TITLE_H);
         ui.text(title, self.title, BIG, TEXT, Align::Left);
-        ui.text(title, "READY", SMALL, self.color, Align::Right);
+        ui.text(title, view.status, SMALL, self.color, Align::Right);
 
         let choices = ["PRETRAINED", "MY MODEL"];
+        let enabled = [!view.training, !view.training && view.my_enabled];
         let selected = self.my_model as usize;
-        if let Some(i) = ui.choice(row(CONTROL_H), choices, selected, [true, false], SMALL) {
+        if let Some(i) = ui.choice(row(CONTROL_H), choices, selected, enabled, SMALL) {
             self.my_model = i == 1;
+            self.index = usize::MAX;
+            action = Action::NewGame;
         }
 
-        let last = self.points.len() - 1;
-        let text = format!("{} {} / {}", self.unit, self.value(), self.points[last]);
-        let step = ui.stepper(row(CONTROL_H), &text, [true, true], SMALL);
-        match step {
+        let last = view.points.len() - 1;
+        self.index = self.index.min(last);
+        let text = format!(
+            "{} {} / {}",
+            self.unit, view.points[self.index], view.points[last]
+        );
+        let can = !view.training;
+        match ui.stepper(row(CONTROL_H), &text, [can, can], SMALL) {
             Some(-1) => {
                 self.index = if self.index == 0 {
                     last
                 } else {
                     self.index - 1
-                }
+                };
+                action = Action::NewGame;
             }
             Some(_) => {
                 self.index = if self.index == last {
                     0
                 } else {
                     self.index + 1
-                }
+                };
+                action = Action::NewGame;
             }
             None => {}
         }
 
         let score_row = row(SCORE_H);
-        if let Some(score) = score {
+        if let Some(score) = view.score {
             ui.text(score_row, "Test score", SMALL, TEXT, Align::Left);
-            let score = score.to_string();
-            ui.text(score_row, &score, SMALL, VALUE, Align::Right);
+            ui.text(score_row, &score.to_string(), SMALL, VALUE, Align::Right);
+        }
+        if let Some(note) = &view.note {
+            ui.text(score_row, note, SMALL, TEXT, Align::Center);
         }
 
-        ui.progress(row(PROGRESS_H), 0.0, self.color);
+        ui.progress(row(PROGRESS_H), view.progress, self.color);
 
         let buttons = row(CONTROL_H);
         let half = (buttons.w - GAP) / 2.0;
         let left = Rect::new(buttons.x, buttons.y, half, buttons.h);
         let right = Rect::new(buttons.right() - half, buttons.y, half, buttons.h);
-        let train = format!("TRAIN TO {}", self.points[(self.index + 1).min(last)]);
-        ui.button(left, &train, SMALL, TRAIN_COLOR, false);
+        if view.training {
+            if ui.button(left, "STOP", SMALL, RESET_COLOR, true) {
+                action = Action::Stop;
+            }
+        } else if let Some(next) = view.next {
+            let train = format!("TRAIN TO {next}");
+            if ui.button(left, &train, SMALL, TRAIN_COLOR, view.can_train) {
+                action = Action::Train;
+            }
+        } else {
+            ui.button(left, "DONE", SMALL, TRAIN_COLOR, false);
+        }
         ui.button(right, "RESET", SMALL, RESET_COLOR, false);
-        step.is_some()
+        action
     }
 }
 
@@ -129,8 +163,8 @@ pub struct Panel {
 impl Panel {
     pub fn new() -> Self {
         Self {
-            vision: Card::new("VISION", "ROUND", &ROUNDS, VISION_COLOR),
-            control: Card::new("CONTROL", "GEN", &GENERATIONS, CONTROL_COLOR),
+            vision: Card::new("VISION", "ROUND", VISION_COLOR, ROUNDS.len() - 1),
+            control: Card::new("CONTROL", "GEN", CONTROL_COLOR, POINTS.len() - 1),
             speed_index: 1,
         }
     }
@@ -140,16 +174,38 @@ impl Panel {
         SPEEDS[self.speed_index]
     }
 
-    pub fn selection(&self) -> Selection {
+    pub fn selection(&self, models: &Models) -> Selection {
+        let round = ROUNDS[self.vision.index];
+        let generations = self.control_points(models, round);
         Selection {
-            round: self.vision.value(),
-            generation: self.control.value(),
+            round,
+            generation: generations[self.control.index.min(generations.len() - 1)],
+            my_policy: self.control.my_model,
+        }
+    }
+
+    /// Shows the last point of the player's policy.
+    pub fn select_my_policy(&mut self) {
+        self.control.my_model = true;
+        self.control.index = usize::MAX;
+    }
+
+    fn control_points(&self, models: &Models, round: usize) -> Vec<usize> {
+        if !self.control.my_model {
+            return POINTS.to_vec();
+        }
+        let generations = models.my_generations(round);
+        // An untrained policy is generation 0.
+        if generations.is_empty() {
+            vec![0]
+        } else {
+            generations
         }
     }
 
     // Goes after the game: the game paints everything outside its field as bars.
-    // Returns true if the selection changed.
-    pub fn draw(&mut self, ui: &Ui, scores: &Scores) -> bool {
+    // `progress` is the state of the running job.
+    pub fn draw(&mut self, ui: &Ui, models: &Models, progress: Option<f32>) -> Action {
         let r = Rect::new(SCREEN_WEIGHT, 0.0, SCREEN_WEIGHT, SCREEN_HEIGHT);
         draw_background(ui, r);
         let inner = Rect::new(r.x + MARGIN, r.y, r.w - 2.0 * MARGIN, r.h);
@@ -172,12 +228,56 @@ impl Panel {
         }
         let card_h = (r.h - PANEL_TITLE_H - 2.0 * MARGIN) / 2.0;
         let card = |y: f32| Rect::new(inner.x, y, inner.w, card_h);
-        let score = scores.get(self.selection());
-        let vision = self.vision.draw(ui, card(r.y + PANEL_TITLE_H), None);
-        let control =
-            self.control
-                .draw(ui, card(r.y + PANEL_TITLE_H + card_h + MARGIN), Some(score));
-        vision || control
+        let training = progress.is_some();
+
+        let vision_view = View {
+            points: ROUNDS.to_vec(),
+            my_enabled: false,
+            score: None,
+            note: None,
+            status: "READY",
+            progress: 0.0,
+            training,
+            next: ROUNDS.get(self.vision.index + 1).copied(),
+            can_train: false,
+        };
+        let vision = self
+            .vision
+            .draw(ui, card(r.y + PANEL_TITLE_H), &vision_view);
+        let round = ROUNDS[self.vision.index];
+
+        let selection = self.selection(models);
+        let next = models.next_point(round);
+        let control_view = View {
+            points: self.control_points(models, round),
+            my_enabled: true,
+            score: models.score(selection),
+            note: models
+                .inherited(round)
+                .filter(|_| selection.my_policy)
+                .map(|(r, g)| format!("from r{r} g{g}")),
+            status: match (training, selection.my_policy) {
+                (true, _) => "TRAINING",
+                (false, false) => "READY",
+                (false, true) if models.score(selection).is_none() => "NO DATA",
+                (false, true) if next.is_none() => "DONE",
+                (false, true) => "READY",
+            },
+            progress: progress.unwrap_or(0.0),
+            training,
+            next,
+            can_train: self.control.my_model,
+        };
+        let control = self.control.draw(
+            ui,
+            card(r.y + PANEL_TITLE_H + card_h + MARGIN),
+            &control_view,
+        );
+        if vision == Action::NewGame {
+            Action::NewGame
+        } else {
+            control
+        }
     }
 }
 
