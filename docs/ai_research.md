@@ -27,7 +27,7 @@ In the game: screen → `vision` → `policy` → move, every 2 frames.
 
 | Setting | Value |
 |---|---|
-| Screen input | player vertical speed and x; 2 floors below and 3 above (dx with screen wrap, dy); monster (alive, dx, dy, vx, vy) |
+| Screen input | player vertical speed and x; 2 floors below and 3 above (dx with screen wrap, dy); monster when on the screen (flag, dx, dy, vx, vy) |
 | `vision` | `[17, 64, 64, 64, 9]`, tanh hidden layers, linear output |
 | `vision` labels | gain and fall risk: hold the move for 10 frames, then a simple climb rule, 90 frames in all; monster risk: hold the move for 40 frames. Risk label = γ^(frames to death), γ = 0.5^(1/20) |
 | `vision` training | DAgger: the net plays, the game copy labels every second frame. 8 rounds × 1500 games. Each round trains on the frames of this and the previous round, 3 epochs (8 on round 0), Adam, batch 512. The loss of the monster risk has weight 3 |
@@ -97,7 +97,7 @@ Does not work:
 
 ## Cost
 
-`bot_train` (8 rounds of `vision`, then 8 GAs of 100 generations) takes about 140 s on 12 threads.
+`bot_train` (8 rounds of `vision`, then 8 GAs of 50 generations) takes about 66 s on 12 threads.
 
 Per unit of work, one thread:
 
@@ -112,7 +112,7 @@ Training in the browser (one WASM thread, 12 ms of each screen frame), Intel Cor
 | Stage | Time |
 |---|---|
 | `policy`, generation 0 → 5 | a few seconds |
-| `policy`, generation 0 → 100 | ~54 s |
+| `policy`, generation 0 → 50 | ~45 s |
 | `vision`, one round | 10–13 s |
 | `vision`, all 8 rounds | ~100 s |
 
@@ -120,11 +120,11 @@ Memory of the frames at training time, WASM: 58 MB, measured. It does not grow a
 
 ## Training in the browser
 
-- The same code as `tools/bot_train`, in small steps: one game of the GA; one labelled frame or one part of a batch for `vision`.
+- The same code as `tools/bot_train`, in small steps: one game of the GA; one labelled frame or one batch for `vision`.
 - The game stands while a job runs. A hidden tab gets no frames, so the job waits.
-- `policy` stops at generations 0, 1, 2, 3, 5, 10, 20, 30, 50. Life grows fast at the start; later neighbours differ mostly by noise.
+- `policy` stops at generations 0, 1, 2, 5, 10, 20, 30, 50. Life grows fast at the start; later neighbours differ mostly by noise.
 - A `policy` belongs to the `vision` it trained on. A pretrained `policy` never runs on the player's `vision`.
-- Browser storage keeps own nets: all `vision` rounds, the best `policy` of each point, and the last elite. At most ~0.85 MB in base64.
+- Browser storage keeps own nets: all `vision` rounds, the best `policy` of each point, and the population after the last point. At most ~0.46 MB in base64.
 - The frames of `vision` are not stored. After a page reload, the next round first plays the previous round again: the same games and net give the same frames.
 
 ## The jump in quality
@@ -145,16 +145,16 @@ The bot lived about 40 s of a 180 s game. Replacing parts of the bot with true d
 - Monster loss weight 3 lifts `vision` almost for free: r7 74 → 101 s with the formula. Weight 10 is worse: falls grow.
 - A wider net costs much more than it gives: `[128, 128, 128]` r7 ~100 s against ~92 s, at 2.4× the training time.
 - Games of 180 s in GA instead of 60 s: about +20%. At 60 s, life after one minute gives nothing.
-- Population 50 instead of 100 halves the GA time for a small loss: r7 −3.4 ± 6.7 s. Shorter games lose more: 120 s r7 80 s, 60 s r7 73 s.
+- Population 50 instead of 100 halves the GA time for a small loss: r7 −3.4 ± 6.7 s, with a wider spread. Shorter games lose more: 120 s r7 80 s, 60 s r7 73 s.
 - No overfitting: the loss on new frames is about the same as on trained frames, and test results on unused seeds are the same.
 
-Final bot, 5 training runs, mean of the medians at generations 30–50:
+Final bot, 5 training runs, mean of the medians at generations 20–50:
 
 | Round | Median life, s | Score |
 |---|---|---|
-| r1 | 55 | 1826 |
-| r3 | 73 | 2458 |
-| r7 | 93 (87–101) | 3213 |
+| r1 | 61 | 2102 |
+| r3 | 76 | 2646 |
+| r7 | 85 (68–105) | 2922 |
 
 `None` about 60% of frames, usually under 0.5 reversals per second.
 
@@ -162,7 +162,7 @@ Final bot, 5 training runs, mean of the medians at generations 30–50:
 
 Training on all frames of all rounds, 8 epochs each, grows with the square of the rounds: most of the time goes to the last rounds. These settings make it about 3.4× faster, with 3.5× less memory.
 
-Median life, s, mean of g50–g100, 15 training seeds, unlike the single best seed of the pretrained nets:
+Median life, s, mean of g50–g100, 15 training seeds, with the old `policy` `[12, 8, 3]`. The current `policy` is in the table above:
 
 | Settings | Time | r1 | r3 | r7 |
 |---|---|---|---|---|
@@ -178,6 +178,6 @@ Median life, s, mean of g50–g100, 15 training seeds, unlike the single best se
 
 ## Library changes
 
-- `neural_network`: activation per layer (ReLU / tanh / linear); `trace` and `backward`; losses and Adam in `train`; `new` scales weights by fan-in; the weighted sum uses 8 partial sums, so the compiler can use SIMD (native SSE, WASM `simd128`): about 3× faster; `tanh` is a rational approximation, applied over the layer outputs as a slice (SIMD): the forward pass is about 4× faster than with `f32::tanh`; `backward_batch` takes many inputs layer by layer.
-- `genetic_algorithm`: tournament selection; no crossover; `UniformMutation` (the old behaviour) and a real `GaussianMutation`; elite fraction; roulette checks; public method traits.
+- `neural_network`: activation per layer (ReLU / tanh / linear); losses and Adam in `train`; `new` scales weights by fan-in; the weighted sum uses 8 partial sums, so the compiler can use SIMD (native SSE, WASM `simd128`): about 3× faster; `tanh` is a rational approximation, applied over the layer outputs as a slice (SIMD): the forward pass is about 4× faster than with `f32::tanh`; `backward_batch` takes many inputs layer by layer.
+- `genetic_algorithm`: tournament selection; no crossover; `UniformMutation` (the old behaviour) and a real `GaussianMutation`; roulette checks; public method traits.
 - `game_logic`: `fork` / `fork_plan` for rollouts.

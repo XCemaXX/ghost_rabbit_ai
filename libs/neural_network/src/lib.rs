@@ -20,18 +20,6 @@ pub struct Buffers {
     next: Vec<f32>,
 }
 
-// Outputs of every layer for one input; the first entry is the input itself.
-#[derive(Debug)]
-pub struct Trace {
-    outputs: Vec<Vec<f32>>,
-}
-
-impl Trace {
-    pub fn output(&self) -> &[f32] {
-        self.outputs.last().unwrap()
-    }
-}
-
 impl Network {
     pub fn propagate(&self, inputs: Vec<f32>) -> Vec<f32> {
         self.layers
@@ -47,33 +35,6 @@ impl Network {
             std::mem::swap(&mut buf.current, &mut buf.next);
         }
         &buf.current
-    }
-
-    pub fn trace(&self, inputs: Vec<f32>) -> Trace {
-        let mut outputs = vec![inputs];
-        for layer in &self.layers {
-            let next = layer.propagate(outputs.last().unwrap().clone());
-            outputs.push(next);
-        }
-        Trace { outputs }
-    }
-
-    // Adds dLoss/dWeight to `grad`, in the order of `weights()`.
-    // `output_grad` is dLoss/dOutput, for example from a loss in `train`.
-    pub fn backward(&self, trace: &Trace, output_grad: &[f32], grad: &mut [f32]) {
-        assert_eq!(grad.len(), self.weights_count());
-        let mut end = grad.len();
-        let mut d_output = output_grad.to_vec();
-        for (i, layer) in self.layers.iter().enumerate().rev() {
-            let start = end - layer.neurons.len() * (trace.outputs[i].len() + 1);
-            d_output = layer.backward(
-                &trace.outputs[i],
-                &trace.outputs[i + 1],
-                &d_output,
-                &mut grad[start..end],
-            );
-            end = start;
-        }
     }
 
     pub fn new<T: GenRandFloat>(rng: &mut T, layers: &[LayerTopology]) -> Self {
@@ -229,64 +190,5 @@ mod tests {
         }
         let mut buf = Buffers::default();
         assert_eq!(network.propagate_into(&[0.5, 0.6, 0.7], &mut buf), actual);
-    }
-
-    #[test]
-    fn linear_output_keeps_negative() {
-        let topology = [
-            relu(2),
-            relu(1),
-            LayerTopology {
-                neurons: 1,
-                activation: Activation::Linear,
-            },
-        ];
-        // Hidden: relu(1 + 1 + 1) = 3. Output: -1 + 3 * -2 = -7.
-        let network = Network::from_weights(&topology, [1.0, 1.0, 1.0, -1.0, -2.0]);
-        assert_eq!(network.propagate(vec![1.0, 1.0]), vec![-7.0]);
-    }
-
-    // Compares `backward` with finite differences on a small tanh net.
-    #[test]
-    fn backward_matches_finite_differences() {
-        let topology = [
-            relu(3),
-            LayerTopology {
-                neurons: 4,
-                activation: Activation::Tanh,
-            },
-            LayerTopology {
-                neurons: 2,
-                activation: Activation::Linear,
-            },
-        ];
-        let weights: Vec<f32> = (0..26)
-            .map(|i| ((i * 7 % 11) as f32 - 5.0) / 10.0)
-            .collect();
-        let inputs = vec![0.3, -0.8, 0.5];
-        let targets = [0.2, -0.4];
-        let loss = |network: &Network| train::mse(&network.propagate(inputs.clone()), &targets).0;
-
-        let network = Network::from_weights(&topology, weights.clone());
-        let trace = network.trace(inputs.clone());
-        let (_, output_grad) = train::mse(trace.output(), &targets);
-        let mut grad = vec![0.0; network.weights_count()];
-        network.backward(&trace, &output_grad, &mut grad);
-
-        let eps = 1e-3;
-        for i in 0..weights.len() {
-            let mut plus = weights.clone();
-            plus[i] += eps;
-            let mut minus = weights.clone();
-            minus[i] -= eps;
-            let numeric = (loss(&Network::from_weights(&topology, plus))
-                - loss(&Network::from_weights(&topology, minus)))
-                / (2.0 * eps);
-            assert!(
-                (numeric - grad[i]).abs() < 1e-3,
-                "weight {i}: {numeric} vs {}",
-                grad[i]
-            );
-        }
     }
 }

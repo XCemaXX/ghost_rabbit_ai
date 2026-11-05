@@ -3,7 +3,7 @@ use game_logic::{ACCELERATION, BOT_Y, GameState, MoveDirection, X_SPEED};
 use rand_trait::GenRandFloat;
 
 // Move to the highest floor that is still reachable on this jump. Only for training labels.
-pub fn climb_move<R: GenRandFloat>(g: &GameState<R>) -> MoveDirection {
+pub(crate) fn climb_move<R: GenRandFloat>(g: &GameState<R>) -> MoveDirection {
     let p = &g.player;
     let r = p.radius;
     let mut best: Option<(f32, f32)> = None;

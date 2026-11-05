@@ -1,7 +1,8 @@
 use std::collections::HashMap;
 
-use super::storage;
-use bot::policy_job::{POINTS, Point, PolicyGa, PolicyJob};
+use super::my_policy::MyPolicy;
+use super::storage::{self, PolicyKey};
+use bot::policy_job::{POINTS, Point, PolicyGa, PolicyJob, Resume};
 use bot::train::{Sample, TestResult};
 use bot::vision_job::{VISION_GAMES, VISION_ROUNDS, VisionJob};
 use bot::{Network, Rng};
@@ -40,28 +41,13 @@ pub struct Selection {
     pub my_policy: bool,
 }
 
-/// A policy belongs to the `vision` it trained on: my `vision` or not, and its round.
-pub type PolicyKey = (bool, usize);
-
 impl Selection {
     pub fn policy_key(&self) -> PolicyKey {
-        (self.my_vision, self.round)
+        PolicyKey {
+            my_vision: self.my_vision,
+            round: self.round,
+        }
     }
-}
-
-/// A finished point of the player's policy.
-pub struct MyPoint {
-    pub generation: usize,
-    pub policy: Network,
-    pub result: TestResult,
-}
-
-/// Policies trained by the player on one `vision`.
-/// Training goes on from `elite` and `rng`, the state at the last point.
-pub struct MyPolicy {
-    pub points: Vec<MyPoint>,
-    pub elite: Vec<Network>,
-    pub rng: Rng,
 }
 
 /// The rounds of the player's `vision`, and the frames of the last round.
@@ -75,11 +61,11 @@ pub struct Models {
     results: HashMap<(usize, usize), TestResult>,
     my_policies: HashMap<PolicyKey, MyPolicy>,
     my_vision: MyVision,
-    pub save_failed: bool,
+    save_failed: bool,
 }
 
 impl Models {
-    pub fn new() -> Self {
+    fn new() -> Self {
         let parse = |line: &str| {
             let mut fields = line.split(',').map(|f| f.parse::<f32>().unwrap());
             let mut next = || fields.next().unwrap();
@@ -99,7 +85,37 @@ impl Models {
         }
     }
 
-    pub fn load(&self, s: Selection) -> (Network, Network) {
+    /// Adds what the browser keeps from earlier visits.
+    pub fn from_storage() -> Self {
+        let mut models = Self::new();
+        let (rounds, rng) = storage::load_vision();
+        models.my_vision.rounds = rounds;
+        if let Some(rng) = rng {
+            models.my_vision.rng = rng;
+        }
+        for round in 0..VISION_ROUNDS {
+            for my_vision in [false, true] {
+                let key = PolicyKey { my_vision, round };
+                // Its `vision` is lost: a new one must not get this policy and its results.
+                if my_vision && round >= models.my_vision_rounds() {
+                    storage::remove_policy(key);
+                } else if let Some(policy) =
+                    storage::load_policy(key).and_then(|text| MyPolicy::from_text(&text))
+                {
+                    models.my_policies.insert(key, policy);
+                }
+            }
+        }
+        models
+    }
+
+    /// Some save did not reach the browser since the last reset of `vision`.
+    pub fn save_failed(&self) -> bool {
+        self.save_failed
+    }
+
+    /// The pair of nets to play with.
+    pub fn nets(&self, s: Selection) -> (Network, Network) {
         let policy = if s.my_policy {
             self.my_point(s)
                 .map_or_else(untrained_policy, |p| p.policy.clone())
@@ -116,7 +132,7 @@ impl Models {
                 Network::clone,
             )
         } else {
-            bot::from_bytes(&bot::vision_topology(), VISIONS[round])
+            bot::vision_from_bytes(VISIONS[round]).unwrap()
         }
     }
 
@@ -126,6 +142,28 @@ impl Models {
             self.my_point(s).map(|point| point.result)
         } else {
             Some(self.results[&(s.round, s.generation)])
+        }
+    }
+
+    /// The rounds to choose from. An untrained net of the player is round 0.
+    pub fn rounds(&self, my_vision: bool) -> Vec<usize> {
+        if my_vision {
+            (0..self.my_vision_rounds().max(1)).collect()
+        } else {
+            (0..VISION_ROUNDS).collect()
+        }
+    }
+
+    /// The generations to choose from. An untrained policy of the player is generation 0.
+    pub fn generations(&self, key: PolicyKey, my_policy: bool) -> Vec<usize> {
+        if !my_policy {
+            return POINTS.to_vec();
+        }
+        let generations = self.my_generations(key);
+        if generations.is_empty() {
+            vec![0]
+        } else {
+            generations
         }
     }
 
@@ -140,6 +178,7 @@ impl Models {
     }
 
     pub fn start_vision_job(&mut self) -> VisionJob {
+        assert!(self.next_vision_round().is_some());
         let vision = &mut self.my_vision;
         VisionJob::new(
             &vision.rounds,
@@ -152,7 +191,7 @@ impl Models {
     pub fn finish_vision_job(&mut self, job: VisionJob) {
         let (net, data, rng) = job.finish();
         let round = self.my_vision.rounds.len();
-        self.save_failed = !storage::save_vision_round(round, &net, &rng);
+        self.save_failed |= !storage::save_vision_round(round, &net, &rng);
         self.my_vision.rounds.push(net);
         self.my_vision.data = data;
         self.my_vision.rng = rng;
@@ -162,7 +201,7 @@ impl Models {
         (self.my_vision.data, self.my_vision.rng) = job.stop();
     }
 
-    pub fn my_generations(&self, key: PolicyKey) -> Vec<usize> {
+    fn my_generations(&self, key: PolicyKey) -> Vec<usize> {
         self.my_policies.get(&key).map_or(Vec::new(), |p| {
             p.points.iter().map(|point| point.generation).collect()
         })
@@ -177,37 +216,35 @@ impl Models {
         }
     }
 
+    /// A policy on the player's `vision` needs that round.
+    pub fn can_train_policy(&self, key: PolicyKey) -> bool {
+        !key.my_vision || key.round < self.my_vision_rounds()
+    }
+
     /// Goes on from the last point, or else starts from a random population.
     pub fn start_policy_job(&mut self, key: PolicyKey) -> PolicyJob {
         let target = self.next_point(key).expect("the last point is reached");
-        let (my_vision, round) = key;
-        let last = self
-            .my_policies
-            .get(&key)
-            .and_then(|p| Some((p, p.points.last()?.generation)));
-        let ga = match last {
-            Some((policy, generation)) => {
-                PolicyGa::from_elite(policy.rng.clone(), &policy.elite, generation + 1)
-            }
+        assert!(self.can_train_policy(key));
+        let ga = match self.my_policies.get(&key) {
+            Some(policy) => PolicyGa::resume(policy.resume.clone()),
             None => PolicyGa::new(random_rng()),
         };
-        PolicyJob::new(self.load_vision(my_vision, round), ga, target)
+        PolicyJob::new(self.load_vision(key.my_vision, key.round), ga, target)
     }
 
-    /// Returns the policy with the new point, to be saved.
-    pub fn add_point(&mut self, key: PolicyKey, point: Point) -> &MyPolicy {
+    pub fn add_point(&mut self, key: PolicyKey, point: Point, resume: Resume) {
+        let policy = self.push_point(key, point, resume);
+        let text = policy.to_text();
+        self.save_failed |= !storage::save_policy(key, &text);
+    }
+
+    fn push_point(&mut self, key: PolicyKey, point: Point, resume: Resume) -> &MyPolicy {
         let policy = self.my_policies.entry(key).or_insert_with(|| MyPolicy {
             points: Vec::new(),
-            elite: Vec::new(),
-            rng: point.rng.clone(),
+            resume: resume.clone(),
         });
-        policy.points.push(MyPoint {
-            generation: point.generation,
-            policy: point.policy,
-            result: point.result,
-        });
-        policy.elite = point.elite;
-        policy.rng = point.rng;
+        policy.points.push(point);
+        policy.resume = resume;
         policy
     }
 
@@ -217,36 +254,30 @@ impl Models {
 
     pub fn reset_policy(&mut self, key: PolicyKey) {
         self.my_policies.remove(&key);
+        storage::remove_policy(key);
     }
 
     /// Removes the player's `vision` and the policies trained on it.
     pub fn reset_vision(&mut self) {
+        self.forget_my_vision();
+        storage::remove_vision();
+        for round in 0..VISION_ROUNDS {
+            storage::remove_policy(PolicyKey {
+                my_vision: true,
+                round,
+            });
+        }
+        self.save_failed = false;
+    }
+
+    fn forget_my_vision(&mut self) {
         self.my_vision.rounds.clear();
         self.my_vision.data = Vec::new();
         self.my_vision.rng = random_rng();
-        self.my_policies.retain(|&(my_vision, _), _| !my_vision);
+        self.my_policies.retain(|key, _| !key.my_vision);
     }
 
-    /// Adds what the browser keeps from earlier visits.
-    pub fn with_saved() -> Self {
-        let mut models = Self::new();
-        let (rounds, rng) = storage::load_vision();
-        models.my_vision.rounds = rounds;
-        if let Some(rng) = rng {
-            models.my_vision.rng = rng;
-        }
-        for round in 0..VISION_ROUNDS {
-            for my_vision in [false, true] {
-                let key = (my_vision, round);
-                if let Some(policy) = storage::load_policy(key) {
-                    models.my_policies.insert(key, policy);
-                }
-            }
-        }
-        models
-    }
-
-    fn my_point(&self, s: Selection) -> Option<&MyPoint> {
+    fn my_point(&self, s: Selection) -> Option<&Point> {
         self.my_policies
             .get(&s.policy_key())?
             .points
@@ -263,23 +294,38 @@ fn random_rng() -> Rng {
     Rng(miniquad::date::now().to_bits())
 }
 
+// Native storage writes a file, so these tests stay on the methods without it.
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    fn point(generation: usize) -> Point {
+    fn point(generation: usize) -> (Point, Resume) {
         let mut rng = Rng(generation as u64);
         let policy = Network::new(&mut rng, &bot::policy_topology());
-        Point {
-            generation,
-            policy: policy.clone(),
-            result: TestResult {
-                life: 1.0,
-                score: 2.0,
-            },
-            elite: vec![policy],
+        let resume = Resume {
+            generation: generation + 1,
+            population: vec![policy.clone()],
             rng,
-        }
+        };
+        let result = TestResult {
+            life: 1.0,
+            score: 2.0,
+        };
+        let point = Point {
+            generation,
+            policy,
+            result,
+        };
+        (point, resume)
+    }
+
+    fn key(my_vision: bool, round: usize) -> PolicyKey {
+        PolicyKey { my_vision, round }
+    }
+
+    fn push(models: &mut Models, key: PolicyKey, generation: usize) {
+        let (point, resume) = point(generation);
+        models.push_point(key, point, resume);
     }
 
     #[test]
@@ -293,7 +339,7 @@ mod tests {
                     my_vision: false,
                     my_policy: false,
                 };
-                models.load(s);
+                models.nets(s);
                 models.result(s);
             }
         }
@@ -302,45 +348,22 @@ mod tests {
     #[test]
     fn next_point_follows_the_last_finished_one() {
         let mut models = Models::new();
-        let key = (false, 2);
+        let key = key(false, 2);
         assert_eq!(models.next_point(key), Some(POINTS[1]));
-        models.add_point(key, point(POINTS[0]));
-        models.add_point(key, point(POINTS[1]));
+        push(&mut models, key, POINTS[0]);
+        push(&mut models, key, POINTS[1]);
         assert_eq!(models.next_point(key), Some(POINTS[2]));
-        models.add_point(key, point(*POINTS.last().unwrap()));
+        push(&mut models, key, *POINTS.last().unwrap());
         assert_eq!(models.next_point(key), None);
     }
 
     #[test]
-    fn a_new_round_starts_on_its_own() {
+    fn forgetting_my_vision_removes_only_its_policies() {
         let mut models = Models::new();
-        models.add_point((false, 1), point(POINTS[1]));
-        assert_eq!(models.next_point((false, 5)), Some(POINTS[1]));
-        models.start_policy_job((false, 5));
-        models.reset_policy((false, 1));
-        assert!(!models.has_points((false, 1)));
-    }
-
-    #[test]
-    fn reset_vision_removes_only_its_policies() {
-        let mut models = Models::new();
-        models.add_point((true, 1), point(POINTS[1]));
-        models.add_point((false, 1), point(POINTS[1]));
-        models.reset_vision();
-        assert!(!models.has_points((true, 1)));
-        assert!(models.has_points((false, 1)));
-    }
-
-    #[test]
-    fn untrained_my_models_load() {
-        let s = Selection {
-            round: 0,
-            generation: 0,
-            my_vision: true,
-            my_policy: true,
-        };
-        let models = Models::new();
-        models.load(s);
-        assert!(models.result(s).is_none());
+        push(&mut models, key(true, 1), POINTS[1]);
+        push(&mut models, key(false, 1), POINTS[1]);
+        models.forget_my_vision();
+        assert!(!models.has_points(key(true, 1)));
+        assert!(models.has_points(key(false, 1)));
     }
 }

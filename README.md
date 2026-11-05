@@ -24,7 +24,7 @@ Native tests on Linux need ALSA headers: `sudo apt install libasound2-dev`. Then
 <img src="./docs/ghost_rabbit_gameplay.gif" width="300" height="457" />
 
 # AI
-The AI button in the main menu opens the AI scree. A bot plays Unreal on the left and starts again after each death.
+The AI button in the main menu opens the AI screen. A bot plays Unreal on the left and starts again after each death.
 The bot sees only the screen. It has two nets: `vision` learns to see danger, `control` learns to choose moves.
 
 On the panel on the right you can:

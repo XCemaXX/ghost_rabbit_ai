@@ -6,6 +6,5 @@ publish = false
 
 [dependencies]
 bot = { path = "../../libs/bot" }
-neural_network = { path = "../../libs/neural_network" }
 rayon = "1.12.0"
 

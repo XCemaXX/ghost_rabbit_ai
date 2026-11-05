@@ -2,19 +2,17 @@
 use crate::train::{self, TestResult};
 use crate::{Bot, Rng, policy_topology};
 use genetic_algorithm::{
-    self as ga, BlxACrossover, GeneticAlgorithm, MutationMethod, RouletteWheelSelection,
-    UniformMutation,
+    self as ga, BlxACrossover, GeneticAlgorithm, RouletteWheelSelection, UniformMutation,
 };
-use neural_network::{LayerTopology, Network};
+use neural_network::Network;
 
 pub const POPULATION: usize = 50;
 // Games per individual and generation; all individuals play the same games.
-pub const GAMES: u64 = 4;
+const GAMES: u64 = 4;
 pub const TEST_GAMES: u64 = 200;
 // Generations the player can stop at, and those a policy file holds.
 // Life grows fast at the start, later neighbours differ only by noise.
-pub const POINTS: [usize; 9] = [0, 1, 2, 3, 5, 10, 20, 30, 50];
-const ELITE: usize = 15;
+pub const POINTS: [usize; 8] = [0, 1, 2, 5, 10, 20, 30, 50];
 const MUTATE_PROBABILITY: f32 = 0.1;
 const MUTATE_MAGNITUDE: f32 = 0.3;
 
@@ -42,9 +40,8 @@ impl ga::Individual for Individual {
 
 pub struct PolicyGa {
     ga: GeneticAlgorithm<RouletteWheelSelection, BlxACrossover, UniformMutation>,
-    topology: Vec<LayerTopology>,
     rng: Rng,
-    pub population: Vec<Network>,
+    population: Vec<Network>,
     generation: usize,
 }
 
@@ -54,49 +51,46 @@ impl PolicyGa {
         let population = (0..POPULATION)
             .map(|_| Network::new(&mut rng, &topology))
             .collect();
-        Self::with_population(rng, topology, population, 0)
+        Self::resume(Resume {
+            generation: 0,
+            population,
+            rng,
+        })
     }
 
-    /// The elite and its mutated copies. `generation` is the number of this population.
-    pub fn from_elite(mut rng: Rng, elite: &[Network], generation: usize) -> Self {
-        let topology = policy_topology();
-        let mutation = UniformMutation::new(MUTATE_PROBABILITY, MUTATE_MAGNITUDE);
-        let mut population = elite.to_vec();
-        while population.len() < POPULATION {
-            let parent = &elite[rng.below(elite.len())];
-            let mut child: ga::Chromosome = parent.weights().collect();
-            mutation.mutate(&mut rng, &mut child);
-            population.push(Network::from_weights(&topology, child));
-        }
-        Self::with_population(rng, topology, population, generation)
-    }
-
-    fn with_population(
-        rng: Rng,
-        topology: Vec<LayerTopology>,
-        population: Vec<Network>,
-        generation: usize,
-    ) -> Self {
+    pub fn resume(state: Resume) -> Self {
         Self {
             ga: GeneticAlgorithm::new(
                 RouletteWheelSelection,
                 BlxACrossover::new(),
                 UniformMutation::new(MUTATE_PROBABILITY, MUTATE_MAGNITUDE),
             ),
-            topology,
-            rng,
-            population,
-            generation,
+            rng: state.rng,
+            population: state.population,
+            generation: state.generation,
         }
     }
 
-    pub fn game_fitness(&self, vision: &Network, individual: usize, game: u64) -> f32 {
+    pub fn population(&self) -> &[Network] {
+        &self.population
+    }
+
+    pub fn mean_fitness(&self, vision: &Network, individual: usize) -> f32 {
+        let sum: f32 = (0..GAMES)
+            .map(|game| self.game_fitness(vision, individual, game))
+            .sum();
+        sum / GAMES as f32
+    }
+
+    fn game_fitness(&self, vision: &Network, individual: usize, game: u64) -> f32 {
         let mut bot = Bot::new(vision, &self.population[individual]);
         let seed = self.generation as u64 * 100 + game;
         train::fitness(|g| bot.act(g), seed)
     }
 
     pub fn next_generation(&mut self, fitness: &[f32]) {
+        assert_eq!(fitness.len(), self.population.len());
+        let topology = policy_topology();
         let current: Vec<Individual> = self
             .population
             .iter()
@@ -110,13 +104,13 @@ impl PolicyGa {
             .ga
             .create_population(&mut self.rng, &current)
             .into_iter()
-            .map(|i| Network::from_weights(&self.topology, i.chromosome))
+            .map(|i| Network::from_weights(&topology, i.chromosome))
             .collect();
         self.generation += 1;
     }
 }
 
-pub fn best(fitness: &[f32]) -> usize {
+pub fn best_index(fitness: &[f32]) -> usize {
     (0..fitness.len())
         .max_by(|&a, &b| fitness[a].partial_cmp(&fitness[b]).unwrap())
         .unwrap()
@@ -146,7 +140,13 @@ pub struct Point {
     pub generation: usize,
     pub policy: Network,
     pub result: TestResult,
-    pub elite: Vec<Network>,
+}
+
+/// The state of a run after a point: going on from it gives the same run as without a stop.
+#[derive(Clone)]
+pub struct Resume {
+    pub generation: usize,
+    pub population: Vec<Network>,
     pub rng: Rng,
 }
 
@@ -171,6 +171,7 @@ struct Test {
 impl PolicyJob {
     pub fn new(vision: Network, ga: PolicyGa, target: usize) -> Self {
         let start = ga.generation;
+        assert!(start <= target && POINTS.contains(&target));
         Self {
             vision,
             ga,
@@ -189,13 +190,24 @@ impl PolicyJob {
     }
 
     pub fn progress(&self) -> f32 {
-        let total = (self.target - self.start + 1) as f32;
-        let part = self.fitness.len() as f32 / POPULATION as f32;
-        (self.ga.generation - self.start) as f32 / total + part / total
+        if self.done {
+            return 1.0;
+        }
+        let total = generations_cost(self.start..=self.target);
+        let finished = generations_cost(self.start..self.ga.generation);
+        let games = self.fitness.len() as f32 / POPULATION as f32;
+        let tests = self
+            .test
+            .as_ref()
+            .map_or(0.0, |test| test.results.len() as f32 / TEST_GAMES as f32);
+        (finished + games + tests) / total
     }
 
     /// Plays one game. Returns a point when it is finished.
-    pub fn step(&mut self) -> Option<Point> {
+    pub fn step(&mut self) -> Option<(Point, Resume)> {
+        if self.done {
+            return None;
+        }
         if let Some(test) = &mut self.test {
             let policy = &self.ga.population[test.best];
             let game = test.results.len() as u64;
@@ -217,7 +229,7 @@ impl PolicyJob {
         if self.fitness.len() == POPULATION {
             if POINTS.contains(&self.ga.generation) {
                 self.test = Some(Test {
-                    best: best(&self.fitness),
+                    best: best_index(&self.fitness),
                     results: Vec::new(),
                 });
             } else {
@@ -227,26 +239,21 @@ impl PolicyJob {
         None
     }
 
-    fn finish_point(&mut self) -> Point {
+    fn finish_point(&mut self) -> (Point, Resume) {
         let test = self.test.take().unwrap();
-        let mut order: Vec<usize> = (0..POPULATION).collect();
-        order.sort_by(|&a, &b| self.fitness[b].partial_cmp(&self.fitness[a]).unwrap());
         let point = Point {
             generation: self.ga.generation,
             policy: self.ga.population[test.best].clone(),
             result: median_result(&test.results),
-            elite: order[..ELITE]
-                .iter()
-                .map(|&i| self.ga.population[i].clone())
-                .collect(),
+        };
+        self.done = self.ga.generation == self.target;
+        self.next_generation();
+        let resume = Resume {
+            generation: self.ga.generation,
+            population: self.ga.population.clone(),
             rng: self.ga.rng.clone(),
         };
-        if self.ga.generation == self.target {
-            self.done = true;
-        } else {
-            self.next_generation();
-        }
-        point
+        (point, resume)
     }
 
     fn next_generation(&mut self) {
@@ -255,40 +262,57 @@ impl PolicyJob {
     }
 }
 
+// A point plays its test games too: about as many as a generation.
+fn generations_cost(generations: impl Iterator<Item = usize>) -> f32 {
+    generations
+        .map(|g| if POINTS.contains(&g) { 2.0 } else { 1.0 })
+        .sum()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::vision_topology;
 
     #[test]
-    fn from_elite_fills_the_population() {
-        let mut rng = Rng(1);
-        let elite: Vec<Network> = (0..ELITE)
-            .map(|_| Network::new(&mut rng, &policy_topology()))
-            .collect();
-        let ga = PolicyGa::from_elite(rng, &elite, 6);
-        assert_eq!(ga.population.len(), POPULATION);
-        assert_eq!(ga.generation, 6);
-    }
-
-    #[test]
     fn medians_are_taken_separately() {
         let result = |life, score| TestResult { life, score };
         let results = [result(1.0, 30.0), result(2.0, 10.0), result(3.0, 20.0)];
-        let median = median_result(&results);
-        assert_eq!((median.life, median.score), (2.0, 20.0));
+        assert_eq!(median_result(&results), result(2.0, 20.0));
+    }
+
+    fn run(mut job: PolicyJob) -> Vec<(Point, Resume)> {
+        let mut points = Vec::new();
+        let mut progress = 0.0;
+        while !job.is_done() {
+            points.extend(job.step());
+            assert!(job.progress() >= progress);
+            progress = job.progress();
+        }
+        assert_eq!(progress, 1.0);
+        points
     }
 
     #[test]
-    fn job_ends_with_a_point_at_the_target() {
+    fn a_stopped_run_goes_on_as_one_run() {
         let vision = Network::new(&mut Rng(2), &vision_topology());
-        let mut job = PolicyJob::new(vision, PolicyGa::new(Rng(3)), 0);
-        let mut points = Vec::new();
-        while !job.is_done() {
-            points.extend(job.step());
-        }
-        assert_eq!(points.len(), 1);
-        assert_eq!(points[0].generation, 0);
-        assert_eq!(points[0].elite.len(), ELITE);
+        let weights = |p: &Point| p.policy.weights().collect::<Vec<_>>();
+        let target = POINTS[1];
+        let whole = run(PolicyJob::new(
+            vision.clone(),
+            PolicyGa::new(Rng(3)),
+            target,
+        ));
+
+        let first = run(PolicyJob::new(
+            vision.clone(),
+            PolicyGa::new(Rng(3)),
+            POINTS[0],
+        ));
+        let resume = first[0].1.clone();
+        let rest = run(PolicyJob::new(vision, PolicyGa::resume(resume), target));
+
+        assert_eq!(rest[0].0.generation, target);
+        assert_eq!(weights(&rest[0].0), weights(&whole[1].0));
     }
 }

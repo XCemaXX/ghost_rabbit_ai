@@ -20,6 +20,8 @@ const CENTER: f32 = 0.0;
 
 pub const SCREEN_HEIGHT: f32 = TOP_Y - BOT_Y;
 pub const SCREEN_WEIGHT: f32 = RIGHT_X - LEFT_X;
+// Points per unit of height.
+pub const SCORE_SCALE: f32 = 50.0;
 
 const MAX_FLOORS: usize = 12;
 
@@ -138,11 +140,11 @@ impl<T: GenRandFloat> GameState<T> {
     }
 
     pub fn get_score(&self) -> usize {
-        (self.score * 50.0) as usize
+        (self.score * SCORE_SCALE) as usize
     }
 
     pub fn get_score_coord(&self, score: usize) -> (bool, f32) {
-        let score = score as f32 / 50.0;
+        let score = score as f32 / SCORE_SCALE;
         let pos = score - self.score;
         (pos < TOP_Y && pos > BOT_Y, pos)
     }

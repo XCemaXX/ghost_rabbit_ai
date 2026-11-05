@@ -65,7 +65,6 @@ name = "bot_train"
 version = "0.1.0"
 dependencies = [
  "bot",
- "neural_network",
  "rayon",
 ]
 

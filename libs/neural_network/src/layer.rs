@@ -22,30 +22,6 @@ impl Layer {
         self.activation.apply_all(outputs);
     }
 
-    // `grad` is this layer's part of the network gradient, in the order of `weights()`.
-    // Returns dLoss/dInput for the layer below.
-    pub(crate) fn backward(
-        &self,
-        inputs: &[f32],
-        outputs: &[f32],
-        output_grad: &[f32],
-        grad: &mut [f32],
-    ) -> Vec<f32> {
-        let mut input_grad = vec![0.0; inputs.len()];
-        let mut grad = grad.iter_mut();
-        for ((neuron, &output), &d_output) in self.neurons.iter().zip(outputs).zip(output_grad) {
-            let delta = d_output * self.activation.derivative(output);
-            *grad.next().unwrap() += delta;
-            for ((weight, &input), d_input) in
-                neuron.weights.iter().zip(inputs).zip(&mut input_grad)
-            {
-                *grad.next().unwrap() += delta * input;
-                *d_input += delta * weight;
-            }
-        }
-        input_grad
-    }
-
     pub fn new<T: GenRandFloat>(
         rng: &mut T,
         input_size: usize,
