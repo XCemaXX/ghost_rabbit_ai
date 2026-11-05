@@ -7,13 +7,14 @@ use genetic_algorithm::{
 };
 use neural_network::{LayerTopology, Network};
 
-pub const POPULATION: usize = 100;
+pub const POPULATION: usize = 50;
 // Games per individual and generation; all individuals play the same games.
 pub const GAMES: u64 = 4;
 pub const TEST_GAMES: u64 = 200;
-// Generations the player can stop at. The score grows fast at the start, later neighbours differ only by noise.
-pub const POINTS: [usize; 7] = [0, 5, 10, 20, 40, 70, 100];
-const ELITE: usize = 30;
+// Generations the player can stop at, and those a policy file holds.
+// Life grows fast at the start, later neighbours differ only by noise.
+pub const POINTS: [usize; 9] = [0, 1, 2, 3, 5, 10, 20, 30, 50];
+const ELITE: usize = 15;
 const MUTATE_PROBABILITY: f32 = 0.1;
 const MUTATE_MAGNITUDE: f32 = 0.3;
 

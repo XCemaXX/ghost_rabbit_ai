@@ -1,7 +1,7 @@
 // Training data for `vision` and game scores for `policy`.
 // Labels come from rollouts on a copy of the game; the copy is never used at play time.
 use crate::rng::{MidRng, Rng};
-use crate::{MOVES, climb_move, features};
+use crate::{INPUTS, MOVES, climb_move, features};
 use game_logic::{BOT_Y, Difficulty, GameState, MoveDirection};
 use neural_network::{Network, train};
 use rand_trait::GenRandFloat;
@@ -23,10 +23,13 @@ const RISK_WEIGHT: f32 = 4.0;
 const ENERGY_COST: f32 = 0.2;
 // Neighbour frames are almost the same: every second frame gives about the same data at half the cost.
 const SAMPLE_EVERY: usize = 2;
-const LIFE_LIMIT_SEC: f32 = 180.0;
+// One limit for GA and test games. At 60 s, living longer than a minute would give nothing.
+const GAME_LIMIT_SEC: f32 = 180.0;
+// The output that matters most for survival, and the rarest.
+const MONSTER_LOSS_WEIGHT: f32 = 3.0;
 
 pub struct Sample {
-    pub inputs: Vec<f32>,
+    pub inputs: [f32; INPUTS],
     pub labels: [f32; 9],
 }
 
@@ -99,8 +102,7 @@ impl LabeledGame {
         } else {
             [0.0; 9]
         };
-        let mut inputs = Vec::with_capacity(crate::INPUTS);
-        features(&self.g, &mut inputs);
+        let inputs = features(&self.g);
         let m = if self.hold.0 > 0 {
             self.hold.0 -= 1;
             self.hold.1
@@ -108,7 +110,9 @@ impl LabeledGame {
             self.hold = (self.rng.below(15), MOVES[self.rng.below(3)]);
             self.hold.1
         } else {
-            let out = vision.map_or(labels, |v| crate::vision_view(&v.propagate(inputs.clone())));
+            let out = vision.map_or(labels, |v| {
+                crate::vision_view(&v.propagate(inputs.to_vec()))
+            });
             best_move(&out)
         };
         self.g.move_player_by_x(DT, m);
@@ -138,6 +142,9 @@ fn best_move(p: &[f32; 9]) -> MoveDirection {
 pub(crate) fn loss_grad(output: &[f32], labels: &[f32; 9]) -> Vec<f32> {
     let mut grad = train::mse(&output[..3], &labels[..3]).1;
     grad.extend(train::bce_with_logits(&output[3..], &labels[3..]).1);
+    grad[3..6]
+        .iter_mut()
+        .for_each(|g| *g *= MONSTER_LOSS_WEIGHT);
     grad
 }
 
@@ -147,7 +154,7 @@ pub(crate) fn loss_grad(output: &[f32], labels: &[f32; 9]) -> Vec<f32> {
 pub(crate) fn fitness(mut act: impl FnMut(&GameState<Rng>) -> MoveDirection, seed: u64) -> f32 {
     let mut last = MoveDirection::None;
     let mut energy = 0.0;
-    let score = score(
+    let result = test_result(
         |g| {
             let m = act(g);
             energy += if m == MoveDirection::None { 1.0 } else { 2.0 };
@@ -164,10 +171,10 @@ pub(crate) fn fitness(mut act: impl FnMut(&GameState<Rng>) -> MoveDirection, see
         seed,
     );
     // Roulette selection needs fitness >= 0.
-    (score - ENERGY_COST * energy).max(0.0)
+    (result.score - ENERGY_COST * energy).max(0.0)
 }
 
-/// Seconds of life and score of a test game, or medians of many games.
+/// Seconds of life and score of a game, or medians of many games.
 #[derive(Clone, Copy)]
 pub struct TestResult {
     pub life: f32,
@@ -180,8 +187,8 @@ pub(crate) fn test_result(
     seed: u64,
 ) -> TestResult {
     let mut g = GameState::new(Rng(seed), Difficulty::Unreal);
-    let mut life = LIFE_LIMIT_SEC;
-    for frame in 0..(LIFE_LIMIT_SEC / DT) as usize {
+    let mut life = GAME_LIMIT_SEC;
+    for frame in 0..(GAME_LIMIT_SEC / DT) as usize {
         let m = act(&g);
         g.move_player_by_x(DT, m);
         if g.next_step(DT).game_over {
@@ -193,17 +200,4 @@ pub(crate) fn test_result(
         life,
         score: g.score_f() * 50.0,
     }
-}
-
-// Score of one game on Unreal, as long as a GA game.
-pub(crate) fn score(mut act: impl FnMut(&GameState<Rng>) -> MoveDirection, seed: u64) -> f32 {
-    let mut g = GameState::new(Rng(seed), Difficulty::Unreal);
-    for _ in 0..(60.0 / DT) as usize {
-        let m = act(&g);
-        g.move_player_by_x(DT, m);
-        if g.next_step(DT).game_over {
-            break;
-        }
-    }
-    g.score_f() * 50.0
 }

@@ -6,11 +6,11 @@ pub const INPUTS: usize = 2 + 5 * 2 + 5;
 const HALF_W: f32 = SCREEN_WEIGHT / 2.0;
 
 // Only what the player sees: on-screen floors and monster, relative to the player.
-pub fn features<R: GenRandFloat>(g: &GameState<R>, out: &mut Vec<f32>) {
-    out.clear();
+pub fn features<R: GenRandFloat>(g: &GameState<R>) -> [f32; INPUTS] {
+    let mut out = [0.0; INPUTS];
     let p = &g.player;
-    out.push(p.speed.y / MAX_SPEED);
-    out.push(p.position.x / HALF_W);
+    out[0] = p.speed.y / MAX_SPEED;
+    out[1] = p.position.x / HALF_W;
 
     let mut floors: Vec<(f32, f32)> = g
         .floors
@@ -31,24 +31,25 @@ pub fn features<R: GenRandFloat>(g: &GameState<R>, out: &mut Vec<f32>) {
         .unwrap_or(floors.len());
     for i in 0..5 {
         let j = above as isize - 2 + i as isize;
-        match (j >= 0).then(|| floors.get(j as usize)).flatten() {
-            Some(&(dx, dy)) => out.extend([dx, dy]),
-            None => out.extend([0.0, if i < 2 { -2.0 } else { 2.0 }]),
-        }
+        let (dx, dy) = match (j >= 0).then(|| floors.get(j as usize)).flatten() {
+            Some(&floor) => floor,
+            None => (0.0, if i < 2 { -2.0 } else { 2.0 }),
+        };
+        out[2 + 2 * i] = dx;
+        out[3 + 2 * i] = dy;
     }
 
     let m = &g.monster;
     if !m.is_dead && m.position.y < 1.2 {
-        out.extend([
+        out[12..].copy_from_slice(&[
             1.0,
             (m.position.x - p.position.x) / HALF_W,
             m.position.y - p.position.y,
             m.speed.x,
             m.speed.y,
         ]);
-    } else {
-        out.extend([0.0; 5]);
     }
+    out
 }
 
 // Shortest horizontal distance on a screen that wraps at the sides.

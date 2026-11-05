@@ -62,10 +62,9 @@ pub struct MyPolicy {
     pub points: Vec<MyPoint>,
     pub elite: Vec<Network>,
     pub rng: Rng,
-    pub inherited: Option<(usize, usize)>,
 }
 
-/// The rounds of the player's `vision`, and the frames for the next round.
+/// The rounds of the player's `vision`, and the frames of the last round.
 struct MyVision {
     rounds: Vec<Network>,
     data: Vec<Sample>,
@@ -169,10 +168,6 @@ impl Models {
         })
     }
 
-    pub fn inherited(&self, key: PolicyKey) -> Option<(usize, usize)> {
-        self.my_policies.get(&key)?.inherited
-    }
-
     /// The next point to train; `None` if the last one is reached.
     pub fn next_point(&self, key: PolicyKey) -> Option<usize> {
         let last = self.my_generations(key).last().copied();
@@ -182,39 +177,19 @@ impl Models {
         }
     }
 
-    /// Goes on from the last point, or else from the nearest earlier round of the same `vision`.
+    /// Goes on from the last point, or else starts from a random population.
     pub fn start_policy_job(&mut self, key: PolicyKey) -> PolicyJob {
         let target = self.next_point(key).expect("the last point is reached");
         let (my_vision, round) = key;
-        let last_generation = |p: &MyPolicy| p.points.last().map(|point| point.generation);
-        let ga = if let Some((policy, generation)) = self
+        let last = self
             .my_policies
             .get(&key)
-            .and_then(|p| Some((p, last_generation(p)?)))
-        {
-            PolicyGa::from_elite(policy.rng.clone(), &policy.elite, generation + 1)
-        } else {
-            let earlier = (0..round).rev().find_map(|r| {
-                let policy = self.my_policies.get(&(my_vision, r))?;
-                Some((r, last_generation(policy)?, policy))
-            });
-            match earlier {
-                Some((r, generation, policy)) => {
-                    let rng = random_rng();
-                    let ga = PolicyGa::from_elite(rng.clone(), &policy.elite, 0);
-                    self.my_policies.insert(
-                        key,
-                        MyPolicy {
-                            points: Vec::new(),
-                            elite: Vec::new(),
-                            rng,
-                            inherited: Some((r, generation)),
-                        },
-                    );
-                    ga
-                }
-                None => PolicyGa::new(random_rng()),
+            .and_then(|p| Some((p, p.points.last()?.generation)));
+        let ga = match last {
+            Some((policy, generation)) => {
+                PolicyGa::from_elite(policy.rng.clone(), &policy.elite, generation + 1)
             }
+            None => PolicyGa::new(random_rng()),
         };
         PolicyJob::new(self.load_vision(my_vision, round), ga, target)
     }
@@ -225,7 +200,6 @@ impl Models {
             points: Vec::new(),
             elite: Vec::new(),
             rng: point.rng.clone(),
-            inherited: None,
         });
         policy.points.push(MyPoint {
             generation: point.generation,
@@ -338,18 +312,13 @@ mod tests {
     }
 
     #[test]
-    fn a_new_round_inherits_only_from_the_same_vision() {
+    fn a_new_round_starts_on_its_own() {
         let mut models = Models::new();
         models.add_point((false, 1), point(POINTS[1]));
-        models.add_point((false, 3), point(POINTS[2]));
+        assert_eq!(models.next_point((false, 5)), Some(POINTS[1]));
         models.start_policy_job((false, 5));
-        assert_eq!(models.inherited((false, 5)), Some((3, POINTS[2])));
-        models.start_policy_job((false, 0));
-        assert_eq!(models.inherited((false, 0)), None);
-        models.start_policy_job((true, 5));
-        assert_eq!(models.inherited((true, 5)), None);
-        models.reset_policy((false, 3));
-        assert!(!models.has_points((false, 3)));
+        models.reset_policy((false, 1));
+        assert!(!models.has_points((false, 1)));
     }
 
     #[test]
