@@ -34,7 +34,7 @@ impl Ui<'_> {
     }
 
     /// `source` is in texture pixels.
-    pub fn image(&self, r: Rect, texture: &Texture2D, source: Option<Rect>, tint: Color) {
+    pub fn image(&self, r: Rect, texture: &Texture2D, source: Rect, tint: Color) {
         let r = self.screen.rect_to_screen(r);
         draw_texture_ex(
             texture,
@@ -43,7 +43,7 @@ impl Ui<'_> {
             tint,
             DrawTextureParams {
                 dest_size: Some(vec2(r.w, r.h)),
-                source,
+                source: Some(source),
                 ..Default::default()
             },
         );
@@ -111,14 +111,14 @@ impl Ui<'_> {
     }
 
     /// A value over two halves: a click on a half steps down or up. Returns -1 or 1.
-    pub fn stepper(&self, r: Rect, text: &str, can: [bool; 2], size: f32) -> Option<i32> {
+    pub fn stepper(&self, r: Rect, text: &str, enabled: bool, size: f32) -> Option<i32> {
         let w = r.w / 2.0;
         let left = Rect::new(r.x, r.y, w, r.h);
         let right = Rect::new(r.x + w, r.y, w, r.h);
-        let left_hovered = self.frame(left, can[0]);
-        let right_hovered = self.frame(right, can[1]);
-        self.arrow(left, -1.0, can[0]);
-        self.arrow(right, 1.0, can[1]);
+        let left_hovered = self.frame(left, enabled);
+        let right_hovered = self.frame(right, enabled);
+        self.arrow(left, -1.0, enabled);
+        self.arrow(right, 1.0, enabled);
         self.text(r, text, size, VALUE, Align::Center);
         if !is_mouse_button_pressed(MouseButton::Left) {
             None

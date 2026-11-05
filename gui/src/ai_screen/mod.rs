@@ -2,7 +2,8 @@ mod models;
 mod panel;
 mod widgets;
 
-use bot::job::PolicyJob;
+use bot::policy_job::PolicyJob;
+use bot::vision_job::VisionJob;
 use game_logic::{Difficulty, SCREEN_HEIGHT, SCREEN_WEIGHT};
 use macroquad::prelude::*;
 
@@ -12,8 +13,9 @@ use crate::menus::ScreenType;
 use crate::options::Options;
 use crate::recrord_table::RecordTables;
 use crate::resources::Resources;
-use models::{Models, Selection};
-use panel::{Action, Panel};
+pub use models::Models;
+use models::{PolicyKey, Selection};
+use panel::{Action, Panel, Training};
 use widgets::{Align, Ui, VALUE};
 
 const TEXT_SIZE: f32 = SCREEN_WEIGHT / 16.0;
@@ -24,6 +26,7 @@ pub async fn run(
     resources: &Resources,
     record_tables: &RecordTables,
     options: &Options,
+    models: &mut Models,
 ) -> ScreenType {
     let options = Options {
         nickname: "AiBot".to_owned(),
@@ -36,11 +39,10 @@ pub async fn run(
         Rect::new(0.0, 0.0, 2.0 * SCREEN_WEIGHT, SCREEN_HEIGHT),
         false,
     );
-    let mut models = Models::new();
     let mut panel = Panel::new();
-    let mut job: Option<PolicyJob> = None;
+    let mut job: Option<Job> = None;
     loop {
-        let selection = panel.selection(&models);
+        let selection = panel.selection(models);
         let (vision, policy) = models.load(selection);
         let mut player = bot::Bot::new(&vision, &policy);
         let mut game_loop = GameScreen::new(resources, &options, &record_table.scores);
@@ -56,14 +58,20 @@ pub async fn run(
             game_loop.update_game_state_by_input();
             // Here the game ends only by the exit button.
             if game_loop.is_game_over() {
+                stop_job(job, models);
                 return ScreenType::MainMenu;
             }
             let mut new_game = false;
             if let Some(running) = &mut job {
-                train_in_frame(running, &mut models, selection.round);
+                train_in_frame(running, models);
                 if running.is_done() {
-                    job = None;
-                    panel.select_my_policy();
+                    match job.take().unwrap() {
+                        Job::Vision(vision_job) => {
+                            models.finish_vision_job(vision_job);
+                            panel.select_my_vision();
+                        }
+                        Job::Policy(..) => panel.select_my_policy(),
+                    }
                     new_game = true;
                 }
             } else {
@@ -82,13 +90,19 @@ pub async fn run(
                 resources,
             };
             draw_models(&ui, selection);
-            let progress = job.as_ref().map(PolicyJob::progress);
-            match panel.draw(&ui, &models, progress) {
+            let training = job.as_ref().map(Job::training);
+            match panel.draw(&ui, models, training) {
                 Action::None => {}
                 Action::NewGame => new_game = true,
-                Action::Train => job = Some(models.start_job(selection.round)),
-                // The points already finished stay.
-                Action::Stop => job = None,
+                Action::TrainVision => job = Some(Job::Vision(models.start_vision_job())),
+                Action::TrainPolicy(key) => {
+                    job = Some(Job::Policy(models.start_policy_job(key), key));
+                }
+                // The game may stand on a net that training has just replaced.
+                Action::Stop => {
+                    stop_job(job.take(), models);
+                    new_game = true;
+                }
             }
             next_frame().await;
             if new_game {
@@ -98,12 +112,45 @@ pub async fn run(
     }
 }
 
+enum Job {
+    Vision(VisionJob),
+    Policy(PolicyJob, PolicyKey),
+}
+
+impl Job {
+    fn is_done(&self) -> bool {
+        match self {
+            Job::Vision(job) => job.is_done(),
+            Job::Policy(job, _) => job.is_done(),
+        }
+    }
+
+    fn training(&self) -> Training {
+        match self {
+            Job::Vision(job) => Training::Vision(job.progress()),
+            Job::Policy(job, _) => Training::Policy(job.progress()),
+        }
+    }
+}
+
+// The results already finished stay.
+fn stop_job(job: Option<Job>, models: &mut Models) {
+    if let Some(Job::Vision(job)) = job {
+        models.stop_vision_job(job);
+    }
+}
+
 // The game stands while training: the frame belongs to the job.
-fn train_in_frame(job: &mut PolicyJob, models: &mut Models, round: usize) {
+fn train_in_frame(job: &mut Job, models: &mut Models) {
     let start = get_time();
     while !job.is_done() && get_time() - start < TRAIN_SEC_PER_FRAME {
-        if let Some(point) = job.step() {
-            models.add_point(round, point);
+        match job {
+            Job::Vision(job) => job.step(),
+            Job::Policy(job, key) => {
+                if let Some(point) = job.step() {
+                    models.add_point(*key, point);
+                }
+            }
         }
     }
 }
@@ -116,9 +163,9 @@ fn draw_models(ui: &Ui, s: Selection) {
         SCREEN_WEIGHT * 0.72,
         SCREEN_HEIGHT * 0.06,
     );
-    let vision = format!("Vision: r{}", s.round);
-    let mine = if s.my_policy { "my " } else { "" };
-    let control = format!("Control: {mine}g{}", s.generation);
+    let mark = |mine| if mine { "*" } else { "" };
+    let vision = format!("Vision: r{}{}", s.round, mark(s.my_vision));
+    let control = format!("Control: g{}{}", s.generation, mark(s.my_policy));
     ui.text(r, &vision, TEXT_SIZE, VALUE, Align::Left);
     ui.text(r, &control, TEXT_SIZE, VALUE, Align::Right);
 }

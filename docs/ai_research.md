@@ -14,6 +14,7 @@ The full research log (in Russian) and the experiment harness `ai_lab` are in th
 
 - Mean score on 200–500 fixed held-out seeds, Unreal, 60 s limit.
 - The climb speed is about 37 points per second, so the ceiling for 60 s is about 2300.
+- The AI screen shows the median life of 200 games, each limited to 3 minutes. Very long games do not distort it.
 
 ## The bot
 
