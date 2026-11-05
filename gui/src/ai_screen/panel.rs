@@ -297,7 +297,7 @@ impl Panel {
             let text = "Not saved: browser storage is full";
             ui.text(row(2.0, DETAIL_H), text, TINY, RESET_COLOR, Align::Left);
         }
-        let Some(life) = models.life(selection) else {
+        let Some(result) = models.result(selection) else {
             ui.text(
                 row(0.0, RESULT_H),
                 "Not trained yet",
@@ -307,9 +307,10 @@ impl Panel {
             );
             return;
         };
-        let text = format!("Usually lives ~{life} s");
+        let (life, score) = (result.life, result.score);
+        let text = format!("Lives ~{life:.0} s, ~{score:.0} points");
         ui.text(row(0.0, RESULT_H), &text, BIG, VALUE, Align::Left);
-        let detail = "Half of 200 test games last longer";
+        let detail = "Half of 200 test games did better";
         ui.text(row(1.0, DETAIL_H), detail, TINY, TEXT, Align::Left);
         let inherited = models
             .inherited(selection.policy_key())

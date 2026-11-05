@@ -167,17 +167,32 @@ pub(crate) fn fitness(mut act: impl FnMut(&GameState<Rng>) -> MoveDirection, see
     (score - ENERGY_COST * energy).max(0.0)
 }
 
-// Seconds until death. The limit keeps one game within a step of the browser's frame.
-pub(crate) fn life(mut act: impl FnMut(&GameState<Rng>) -> MoveDirection, seed: u64) -> f32 {
+/// Seconds of life and score of a test game, or medians of many games.
+#[derive(Clone, Copy)]
+pub struct TestResult {
+    pub life: f32,
+    pub score: f32,
+}
+
+// The limit keeps one game within a step of the browser's frame.
+pub(crate) fn test_result(
+    mut act: impl FnMut(&GameState<Rng>) -> MoveDirection,
+    seed: u64,
+) -> TestResult {
     let mut g = GameState::new(Rng(seed), Difficulty::Unreal);
+    let mut life = LIFE_LIMIT_SEC;
     for frame in 0..(LIFE_LIMIT_SEC / DT) as usize {
         let m = act(&g);
         g.move_player_by_x(DT, m);
         if g.next_step(DT).game_over {
-            return frame as f32 * DT;
+            life = frame as f32 * DT;
+            break;
         }
     }
-    LIFE_LIMIT_SEC
+    TestResult {
+        life,
+        score: g.score_f() * 50.0,
+    }
 }
 
 // Score of one game on Unreal, as long as a GA game.

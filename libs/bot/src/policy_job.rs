@@ -1,5 +1,6 @@
 // GA for `policy`: the same generations for the trainer tool and, in small steps, for the game.
-use crate::{Bot, Rng, policy_topology, train};
+use crate::train::{self, TestResult};
+use crate::{Bot, Rng, policy_topology};
 use genetic_algorithm::{
     self as ga, BlxACrossover, GeneticAlgorithm, MutationMethod, RouletteWheelSelection,
     UniformMutation,
@@ -120,23 +121,30 @@ pub fn best(fitness: &[f32]) -> usize {
         .unwrap()
 }
 
-/// Seconds of life in one held-out game.
-pub fn test_game(vision: &Network, policy: &Network, game: u64) -> f32 {
+/// One held-out game.
+pub fn test_game(vision: &Network, policy: &Network, game: u64) -> TestResult {
     let mut bot = Bot::new(vision, policy);
-    train::life(|g| bot.act(g), 1_000_000 + game)
+    train::test_result(|g| bot.act(g), 1_000_000 + game)
 }
 
-/// A few very long games would dominate the mean.
-pub fn median_life(mut lives: Vec<f32>) -> f32 {
-    lives.sort_by(|a, b| a.partial_cmp(b).unwrap());
-    lives[lives.len() / 2]
+/// A few very long games would dominate the mean. Each median is taken on its own.
+pub fn median_result(results: &[TestResult]) -> TestResult {
+    let median = |value: fn(&TestResult) -> f32| {
+        let mut values: Vec<f32> = results.iter().map(value).collect();
+        values.sort_by(|a, b| a.partial_cmp(b).unwrap());
+        values[values.len() / 2]
+    };
+    TestResult {
+        life: median(|r| r.life),
+        score: median(|r| r.score),
+    }
 }
 
 /// A finished point of a policy run.
 pub struct Point {
     pub generation: usize,
     pub policy: Network,
-    pub life: f32,
+    pub result: TestResult,
     pub elite: Vec<Network>,
     pub rng: Rng,
 }
@@ -156,7 +164,7 @@ pub struct PolicyJob {
 
 struct Test {
     best: usize,
-    lives: Vec<f32>,
+    results: Vec<TestResult>,
 }
 
 impl PolicyJob {
@@ -189,9 +197,9 @@ impl PolicyJob {
     pub fn step(&mut self) -> Option<Point> {
         if let Some(test) = &mut self.test {
             let policy = &self.ga.population[test.best];
-            let game = test.lives.len() as u64;
-            test.lives.push(test_game(&self.vision, policy, game));
-            if test.lives.len() < TEST_GAMES as usize {
+            let game = test.results.len() as u64;
+            test.results.push(test_game(&self.vision, policy, game));
+            if test.results.len() < TEST_GAMES as usize {
                 return None;
             }
             return Some(self.finish_point());
@@ -209,7 +217,7 @@ impl PolicyJob {
             if POINTS.contains(&self.ga.generation) {
                 self.test = Some(Test {
                     best: best(&self.fitness),
-                    lives: Vec::new(),
+                    results: Vec::new(),
                 });
             } else {
                 self.next_generation();
@@ -225,7 +233,7 @@ impl PolicyJob {
         let point = Point {
             generation: self.ga.generation,
             policy: self.ga.population[test.best].clone(),
-            life: median_life(test.lives),
+            result: median_result(&test.results),
             elite: order[..ELITE]
                 .iter()
                 .map(|&i| self.ga.population[i].clone())
@@ -260,6 +268,14 @@ mod tests {
         let ga = PolicyGa::from_elite(rng, &elite, 6);
         assert_eq!(ga.population.len(), POPULATION);
         assert_eq!(ga.generation, 6);
+    }
+
+    #[test]
+    fn medians_are_taken_separately() {
+        let result = |life, score| TestResult { life, score };
+        let results = [result(1.0, 30.0), result(2.0, 10.0), result(3.0, 20.0)];
+        let median = median_result(&results);
+        assert_eq!((median.life, median.score), (2.0, 20.0));
     }
 
     #[test]
