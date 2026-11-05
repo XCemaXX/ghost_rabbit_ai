@@ -27,6 +27,7 @@ fn window_conf() -> Conf {
 #[macroquad::main(window_conf)]
 async fn main() {
     let mut record_tables = RecordTables::new();
+    let mut ai_models = ai_screen::Models::new();
     let resources = Resources::load_resources();
     let mut options = Options::new();
     let mut background_music: Option<Playback> = None;
@@ -39,7 +40,7 @@ async fn main() {
             }
             ScreenType::GameAi => {
                 start_music(&resources, &options, &mut background_music);
-                ai_screen::run(&resources, &record_tables, &options).await
+                ai_screen::run(&resources, &record_tables, &options, &mut ai_models).await
             }
             ScreenType::MainMenu => run_main_menu_loop(&resources).await,
             ScreenType::RecordsMenu => run_records_menu_loop(&resources, &mut record_tables).await,

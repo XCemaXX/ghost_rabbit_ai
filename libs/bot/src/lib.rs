@@ -1,11 +1,12 @@
 // A game bot of two nets that sees only the screen:
 // `vision` predicts, for Left / None / Right, the height gain and the risk to die by monster or by fall;
-// `policy` reads these 9 numbers and its previous move and picks the move.
+// `policy` reads these numbers and its previous move and picks the move.
 mod climb;
 mod features;
-pub mod job;
+pub mod policy_job;
 mod rng;
 pub mod train;
+pub mod vision_job;
 
 use climb::climb_move;
 pub use features::{INPUTS, features, wrap_dx};

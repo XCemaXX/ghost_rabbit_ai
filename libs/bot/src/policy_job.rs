@@ -43,7 +43,7 @@ pub struct PolicyGa {
     topology: Vec<LayerTopology>,
     rng: Rng,
     pub population: Vec<Network>,
-    pub generation: usize,
+    generation: usize,
 }
 
 impl PolicyGa {
@@ -88,7 +88,6 @@ impl PolicyGa {
         }
     }
 
-    /// Fitness of one game out of `GAMES`.
     pub fn game_fitness(&self, vision: &Network, individual: usize, game: u64) -> f32 {
         let mut bot = Bot::new(vision, &self.population[individual]);
         let seed = self.generation as u64 * 100 + game;
@@ -121,23 +120,23 @@ pub fn best(fitness: &[f32]) -> usize {
         .unwrap()
 }
 
-/// Score of one held-out game.
+/// Seconds of life in one held-out game.
 pub fn test_game(vision: &Network, policy: &Network, game: u64) -> f32 {
     let mut bot = Bot::new(vision, policy);
-    train::score(|g| bot.act(g), 1_000_000 + game)
+    train::life(|g| bot.act(g), 1_000_000 + game)
 }
 
-pub fn test_mean(mut scores: Vec<f32>) -> f32 {
-    // Sorted sum: the same mean as the research log printed.
-    scores.sort_by(|a, b| a.partial_cmp(b).unwrap());
-    scores.iter().sum::<f32>() / scores.len() as f32
+/// A few very long games would dominate the mean.
+pub fn median_life(mut lives: Vec<f32>) -> f32 {
+    lives.sort_by(|a, b| a.partial_cmp(b).unwrap());
+    lives[lives.len() / 2]
 }
 
 /// A finished point of a policy run.
 pub struct Point {
     pub generation: usize,
     pub policy: Network,
-    pub score: f32,
+    pub life: f32,
     pub elite: Vec<Network>,
     pub rng: Rng,
 }
@@ -157,7 +156,7 @@ pub struct PolicyJob {
 
 struct Test {
     best: usize,
-    scores: Vec<f32>,
+    lives: Vec<f32>,
 }
 
 impl PolicyJob {
@@ -190,9 +189,9 @@ impl PolicyJob {
     pub fn step(&mut self) -> Option<Point> {
         if let Some(test) = &mut self.test {
             let policy = &self.ga.population[test.best];
-            let game = test.scores.len() as u64;
-            test.scores.push(test_game(&self.vision, policy, game));
-            if test.scores.len() < TEST_GAMES as usize {
+            let game = test.lives.len() as u64;
+            test.lives.push(test_game(&self.vision, policy, game));
+            if test.lives.len() < TEST_GAMES as usize {
                 return None;
             }
             return Some(self.finish_point());
@@ -210,7 +209,7 @@ impl PolicyJob {
             if POINTS.contains(&self.ga.generation) {
                 self.test = Some(Test {
                     best: best(&self.fitness),
-                    scores: Vec::new(),
+                    lives: Vec::new(),
                 });
             } else {
                 self.next_generation();
@@ -226,7 +225,7 @@ impl PolicyJob {
         let point = Point {
             generation: self.ga.generation,
             policy: self.ga.population[test.best].clone(),
-            score: test_mean(test.scores),
+            life: median_life(test.lives),
             elite: order[..ELITE]
                 .iter()
                 .map(|&i| self.ga.population[i].clone())
