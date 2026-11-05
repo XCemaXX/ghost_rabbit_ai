@@ -83,13 +83,22 @@ impl<'a> GameScreen<'a> {
 
     /// Advances the game by one frame of `frame_dt` seconds.
     pub fn advance(&mut self, frame_dt: f64, move_direction: MoveDirection) {
-        if frame_dt > AUTO_PAUSE_FRAME_SEC && self.state == State::Running {
-            self.change_state(State::Paused);
-        }
+        self.pause_after_long_frame(frame_dt);
         let (steps, dt) = split_frame(frame_dt);
         for _ in 0..steps {
-            self.move_player(dt, move_direction);
-            self.next_step(dt);
+            self.step(dt, move_direction);
+        }
+    }
+
+    /// One step of `dt` seconds, whatever its length.
+    pub fn step(&mut self, dt: f64, move_direction: MoveDirection) {
+        self.move_player(dt, move_direction);
+        self.next_step(dt);
+    }
+
+    pub fn pause_after_long_frame(&mut self, frame_dt: f64) {
+        if frame_dt > AUTO_PAUSE_FRAME_SEC && self.state == State::Running {
+            self.change_state(State::Paused);
         }
     }
 

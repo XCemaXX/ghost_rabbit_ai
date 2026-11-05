@@ -8,7 +8,7 @@ pub struct Neuron {
 
 impl Neuron {
     // Weighted sum, before the layer's activation.
-    // Eight partial sums: a single running sum cannot be reordered, so the compiler cannot use SIMD.
+    // Partial sums: a single running sum cannot be reordered, so the compiler cannot use SIMD.
     pub fn propagate(&self, inputs: &[f32]) -> f32 {
         assert_eq!(inputs.len(), self.weights.len());
         let mut sums = [0.0; 8];
@@ -30,7 +30,6 @@ impl Neuron {
     }
 
     // Variance 1 / input_size: the weighted sum stays near 1, so deep nets do not saturate.
-    // The random bias keeps a GA start population diverse.
     pub fn new<T: GenRandFloat>(rng: &mut T, input_size: usize) -> Self {
         let limit = (3.0 / input_size as f32).sqrt();
         let bias = rng.gen_range(-limit..=limit);

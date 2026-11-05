@@ -1,8 +1,8 @@
 use crate::Network;
 
 impl Network {
-    // Same sum as `trace` + `backward` for every input, but layer by layer for the whole batch:
-    // a gradient row stays in cache for all inputs instead of the whole gradient for each input.
+    // Adds dLoss/dWeight to `grad`, in the order of `weights()`.
+    // Layer by layer for the whole batch: a gradient row stays in cache for all inputs.
     // `output_grad(i, output)` is dLoss/dOutput for input `i`.
     pub fn backward_batch(
         &self,
@@ -80,42 +80,46 @@ mod tests {
     use crate::{Activation, LayerTopology, Network, train};
 
     #[test]
-    fn backward_batch_matches_backward() {
+    fn backward_batch_matches_finite_differences() {
         let layer = |neurons, activation| LayerTopology {
             neurons,
             activation,
         };
         let topology = [
-            layer(5, Activation::Tanh),
-            layer(7, Activation::Tanh),
-            layer(6, Activation::Relu),
-            layer(3, Activation::Linear),
+            layer(3, Activation::Tanh),
+            layer(4, Activation::Tanh),
+            layer(3, Activation::Relu),
+            layer(2, Activation::Linear),
         ];
-        let count = (5 + 1) * 7 + (7 + 1) * 6 + (6 + 1) * 3;
+        let count = (3 + 1) * 4 + (4 + 1) * 3 + (3 + 1) * 2;
         let weights: Vec<f32> = (0..count)
             .map(|i| ((i * 7 % 13) as f32 - 6.0) / 10.0)
             .collect();
-        let network = Network::from_weights(&topology, weights);
-        let inputs: Vec<Vec<f32>> = (0..9)
-            .map(|b| {
-                (0..5)
-                    .map(|i| ((b * 5 + i) % 11) as f32 / 5.0 - 1.0)
-                    .collect()
-            })
-            .collect();
-        let target = |b: usize| [b as f32 / 9.0, -0.5, 0.25];
+        let inputs: [&[f32]; 3] = [&[0.3, -0.8, 0.5], &[-0.2, 0.1, 0.9], &[0.7, 0.4, -0.6]];
+        let target = |i: usize| [i as f32 / 3.0, -0.5];
+        let loss = |weights: Vec<f32>| -> f32 {
+            let network = Network::from_weights(&topology, weights);
+            (0..inputs.len())
+                .map(|i| train::mse(&network.propagate(inputs[i].to_vec()), &target(i)).0)
+                .sum()
+        };
 
-        let mut expected = vec![0.0; count];
-        for (b, x) in inputs.iter().enumerate() {
-            let trace = network.trace(x.clone());
-            let output_grad = train::mse(trace.output(), &target(b)).1;
-            network.backward(&trace, &output_grad, &mut expected);
-        }
-        let mut actual = vec![0.0; count];
-        let rows: Vec<&[f32]> = inputs.iter().map(|x| x.as_slice()).collect();
-        network.backward_batch(&rows, |b, out| train::mse(out, &target(b)).1, &mut actual);
-        for (i, (a, e)) in actual.iter().zip(&expected).enumerate() {
-            assert!((a - e).abs() < 1e-5, "weight {i}: {a} vs {e}");
+        let network = Network::from_weights(&topology, weights.iter().copied());
+        let mut grad = vec![0.0; count];
+        network.backward_batch(&inputs, |i, out| train::mse(out, &target(i)).1, &mut grad);
+
+        let eps = 1e-3;
+        for i in 0..count {
+            let mut plus = weights.clone();
+            plus[i] += eps;
+            let mut minus = weights.clone();
+            minus[i] -= eps;
+            let numeric = (loss(plus) - loss(minus)) / (2.0 * eps);
+            assert!(
+                (numeric - grad[i]).abs() < 2e-3,
+                "weight {i}: {numeric} vs {}",
+                grad[i]
+            );
         }
     }
 }

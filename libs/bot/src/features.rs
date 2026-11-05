@@ -1,12 +1,12 @@
-use game_logic::{BOT_Y, GameState, MAX_SPEED, SCREEN_WEIGHT};
+use game_logic::{BOT_Y, GameState, MAX_SPEED, RIGHT_X, SCREEN_WEIGHT};
 use rand_trait::GenRandFloat;
 
-pub const INPUTS: usize = 2 + 5 * 2 + 5;
+pub(crate) const INPUTS: usize = 2 + 5 * 2 + 5;
 
 const HALF_W: f32 = SCREEN_WEIGHT / 2.0;
 
 // Only what the player sees: on-screen floors and monster, relative to the player.
-pub fn features<R: GenRandFloat>(g: &GameState<R>) -> [f32; INPUTS] {
+pub(crate) fn features<R: GenRandFloat>(g: &GameState<R>) -> [f32; INPUTS] {
     let mut out = [0.0; INPUTS];
     let p = &g.player;
     out[0] = p.speed.y / MAX_SPEED;
@@ -24,14 +24,13 @@ pub fn features<R: GenRandFloat>(g: &GameState<R>) -> [f32; INPUTS] {
         })
         .collect();
     floors.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap());
-    // Two floors right below the player, three above; missing ones are far away.
+    // The floors around the player; missing ones are far away.
     let above = floors
         .iter()
         .position(|f| f.1 > 0.0)
         .unwrap_or(floors.len());
     for i in 0..5 {
-        let j = above as isize - 2 + i as isize;
-        let (dx, dy) = match (j >= 0).then(|| floors.get(j as usize)).flatten() {
+        let (dx, dy) = match (above + i).checked_sub(2).and_then(|j| floors.get(j)) {
             Some(&floor) => floor,
             None => (0.0, if i < 2 { -2.0 } else { 2.0 }),
         };
@@ -40,7 +39,9 @@ pub fn features<R: GenRandFloat>(g: &GameState<R>) -> [f32; INPUTS] {
     }
 
     let m = &g.monster;
-    if !m.is_dead && m.position.y < 1.2 {
+    let on_screen =
+        m.position.y - m.size.y / 2.0 < 1.0 && m.position.x.abs() - m.size.x / 2.0 < RIGHT_X;
+    if !m.is_dead && on_screen {
         out[12..].copy_from_slice(&[
             1.0,
             (m.position.x - p.position.x) / HALF_W,
@@ -53,14 +54,6 @@ pub fn features<R: GenRandFloat>(g: &GameState<R>) -> [f32; INPUTS] {
 }
 
 // Shortest horizontal distance on a screen that wraps at the sides.
-pub fn wrap_dx(dx: f32) -> f32 {
-    let w = SCREEN_WEIGHT;
-    let mut d = dx % w;
-    if d > w / 2.0 {
-        d -= w;
-    }
-    if d < -w / 2.0 {
-        d += w;
-    }
-    d
+pub(crate) fn wrap_dx(dx: f32) -> f32 {
+    dx - SCREEN_WEIGHT * (dx / SCREEN_WEIGHT).round()
 }

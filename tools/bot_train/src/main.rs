@@ -1,10 +1,9 @@
 // Trains the bot and writes its weights to resources/bot.
 // Run by hand (`cargo run --release -p bot_train`): it takes minutes, so CI does not run it.
-use bot::policy_job::{self, GAMES, POINTS, POPULATION, PolicyGa, TEST_GAMES};
+use bot::policy_job::{self, POINTS, POPULATION, Point, PolicyGa, TEST_GAMES};
 use bot::train::{Sample, TestResult, play_and_label};
 use bot::vision_job::{self, VISION_GAMES, VISION_ROUNDS};
-use bot::{Rng, to_bytes, vision_topology};
-use neural_network::Network;
+use bot::{Network, Rng, to_bytes, vision_topology};
 use rayon::prelude::*;
 use std::path::Path;
 
@@ -20,17 +19,18 @@ fn main() {
     }
 
     // One GA per vision round; rounds run side by side.
-    let policies: Vec<Vec<(usize, TestResult, Network)>> = visions
+    let policies: Vec<Vec<Point>> = visions
         .par_iter()
         .enumerate()
         .map(|(round, vision)| train_policy(vision, round))
         .collect();
     let mut scores = String::from("round,generation,median_life,median_score\n");
-    for (round, checkpoints) in policies.iter().enumerate() {
+    for (round, points) in policies.iter().enumerate() {
         let mut bytes = Vec::new();
-        for (generation, result, policy) in checkpoints {
-            bytes.extend(to_bytes(policy));
-            let (life, score) = (result.life, result.score);
+        for point in points {
+            bytes.extend(to_bytes(&point.policy));
+            let (generation, life, score) =
+                (point.generation, point.result.life, point.result.score);
             scores += &format!("{round},{generation},{life:.0},{score:.0}\n");
         }
         std::fs::write(dir.join(format!("policy_r{round}.bin")), bytes).unwrap();
@@ -45,14 +45,11 @@ fn train_vision() -> Vec<Network> {
     let mut vision = Network::new(&mut rng, &vision_topology());
     let mut data: Vec<Sample> = Vec::new();
     let mut rounds = Vec::new();
-    for round in 0..VISION_ROUNDS as u64 {
-        let seeds: Vec<u64> = (0..VISION_GAMES)
-            .map(|i| vision_job::vision_seed(round, i))
-            .collect();
+    for round in 0..VISION_ROUNDS {
         let player = (round > 0).then_some(&vision);
-        let games: Vec<Vec<Sample>> = seeds
-            .par_iter()
-            .map(|&s| play_and_label(player, s))
+        let games: Vec<Vec<Sample>> = (0..VISION_GAMES)
+            .into_par_iter()
+            .map(|i| play_and_label(player, vision_job::vision_seed(round, i)))
             .collect();
         let old_frames = data.len();
         data.extend(games.into_iter().flatten());
@@ -88,22 +85,17 @@ fn fit(vision: &mut Network, data: &[Sample], rng: &mut Rng, epochs: usize) {
     }
 }
 
-// Returns (generation, held-out medians, best policy) at each of `POINTS`.
-fn train_policy(vision: &Network, round: usize) -> Vec<(usize, TestResult, Network)> {
+// Returns the policy of each of `POINTS`.
+fn train_policy(vision: &Network, round: usize) -> Vec<Point> {
     let mut ga = PolicyGa::new(Rng(21));
-    let mut checkpoints = Vec::new();
+    let mut points = Vec::new();
     for generation in 0..=*POINTS.last().unwrap() {
         let fitness: Vec<f32> = (0..POPULATION)
             .into_par_iter()
-            .map(|i| {
-                (0..GAMES)
-                    .map(|k| ga.game_fitness(vision, i, k))
-                    .sum::<f32>()
-                    / GAMES as f32
-            })
+            .map(|i| ga.mean_fitness(vision, i))
             .collect();
         if POINTS.contains(&generation) {
-            let policy = &ga.population[policy_job::best(&fitness)];
+            let policy = &ga.population()[policy_job::best_index(&fitness)];
             let results: Vec<TestResult> = (0..TEST_GAMES)
                 .into_par_iter()
                 .map(|k| policy_job::test_game(vision, policy, k))
@@ -111,9 +103,13 @@ fn train_policy(vision: &Network, round: usize) -> Vec<(usize, TestResult, Netwo
             let result = policy_job::median_result(&results);
             let (life, score) = (result.life, result.score);
             println!("round {round} generation {generation}: {life:.0} s, {score:.0} points");
-            checkpoints.push((generation, result, policy.clone()));
+            points.push(Point {
+                generation,
+                policy: policy.clone(),
+                result,
+            });
         }
         ga.next_generation(&fitness);
     }
-    checkpoints
+    points
 }

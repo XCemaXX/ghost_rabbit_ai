@@ -1,8 +1,8 @@
 // Training data for `vision` and game scores for `policy`.
 // Labels come from rollouts on a copy of the game; the copy is never used at play time.
 use crate::rng::{MidRng, Rng};
-use crate::{INPUTS, MOVES, climb_move, features};
-use game_logic::{BOT_Y, Difficulty, GameState, MoveDirection};
+use crate::{INPUTS, MOVES, VISION_OUTPUTS, climb_move, features};
+use game_logic::{BOT_Y, Difficulty, GameState, MoveDirection, SCORE_SCALE};
 use neural_network::{Network, train};
 use rand_trait::GenRandFloat;
 
@@ -21,27 +21,27 @@ const RANDOM_MOVES: f32 = 0.1;
 const RISK_WEIGHT: f32 = 4.0;
 // GA fitness: points lost per unit of energy.
 const ENERGY_COST: f32 = 0.2;
-// Neighbour frames are almost the same: every second frame gives about the same data at half the cost.
+// Neighbour frames are almost the same: labelling only a part gives about the same data for less.
 const SAMPLE_EVERY: usize = 2;
-// One limit for GA and test games. At 60 s, living longer than a minute would give nothing.
+// One limit for GA and test games. A short limit would give nothing for living longer.
 const GAME_LIMIT_SEC: f32 = 180.0;
 // The output that matters most for survival, and the rarest.
 const MONSTER_LOSS_WEIGHT: f32 = 3.0;
 
 pub struct Sample {
-    pub inputs: [f32; INPUTS],
-    pub labels: [f32; 9],
+    pub(crate) inputs: [f32; INPUTS],
+    pub(crate) labels: [f32; VISION_OUTPUTS],
 }
 
 // Gain, monster risk, fall risk for Left / None / Right.
-pub(crate) fn labels<R: GenRandFloat>(g: &GameState<R>) -> [f32; 9] {
+pub(crate) fn labels<R: GenRandFloat>(g: &GameState<R>) -> [f32; VISION_OUTPUTS] {
     let long = MOVES.map(|m| rollout(g, m, HOLD_FRAMES, FALL_FRAMES));
     let short = MOVES.map(|m| rollout(g, m, MONSTER_FRAMES, MONSTER_FRAMES));
     let risk = |death: Option<(usize, bool)>, fall: bool| match death {
         Some((frame, by_fall)) if by_fall == fall => RISK_DECAY.powi(frame as i32),
         _ => 0.0,
     };
-    let mut l = [0.0; 9];
+    let mut l = [0.0; VISION_OUTPUTS];
     for i in 0..3 {
         l[i] = long[i].0;
         l[3 + i] = risk(short[i].1, false);
@@ -59,20 +59,21 @@ fn rollout<R: GenRandFloat>(
 ) -> (f32, Option<(usize, bool)>) {
     let mut s = g.fork_plan(MidRng);
     let start = s.score_f();
+    let mut death = None;
     for i in 0..frames {
         let mv = if i < hold { m } else { climb_move(&s) };
         s.move_player_by_x(DT, mv);
         if s.next_step(DT).game_over {
-            let fall = s.player.position.y < BOT_Y;
-            return ((s.score_f() - start) / GAIN_SCALE, Some((i, fall)));
+            death = Some((i, s.player.position.y < BOT_Y));
+            break;
         }
     }
-    ((s.score_f() - start) / GAIN_SCALE, None)
+    ((s.score_f() - start) / GAIN_SCALE, death)
 }
 
 // One game for `vision` training data (DAgger), one frame per `step`: without `vision` the labels
 // choose the moves, with it the net chooses. Every SAMPLE_EVERY-th visited frame is labelled.
-pub struct LabeledGame {
+pub(crate) struct LabeledGame {
     g: GameState<Rng>,
     rng: Rng,
     hold: (usize, MoveDirection),
@@ -81,7 +82,7 @@ pub struct LabeledGame {
 }
 
 impl LabeledGame {
-    pub fn new(seed: u64) -> Self {
+    pub(crate) fn new(seed: u64) -> Self {
         Self {
             g: GameState::new(Rng(seed), Difficulty::Unreal),
             rng: Rng(seed ^ 0x5151),
@@ -91,16 +92,16 @@ impl LabeledGame {
         }
     }
 
-    pub fn is_done(&self) -> bool {
+    pub(crate) fn is_done(&self) -> bool {
         self.done
     }
 
-    pub fn step(&mut self, vision: Option<&Network>) -> Option<Sample> {
+    pub(crate) fn step(&mut self, vision: Option<&Network>) -> Option<Sample> {
         let sample = self.frame.is_multiple_of(SAMPLE_EVERY);
         let labels = if sample || vision.is_none() {
             labels(&self.g)
         } else {
-            [0.0; 9]
+            [0.0; VISION_OUTPUTS]
         };
         let inputs = features(&self.g);
         let m = if self.hold.0 > 0 {
@@ -131,7 +132,7 @@ pub fn play_and_label(vision: Option<&Network>, seed: u64) -> Vec<Sample> {
     samples
 }
 
-fn best_move(p: &[f32; 9]) -> MoveDirection {
+fn best_move(p: &[f32; VISION_OUTPUTS]) -> MoveDirection {
     let value = |i: usize| p[i] - RISK_WEIGHT * p[3 + i] - RISK_WEIGHT * p[6 + i];
     MOVES[(0..3)
         .max_by(|&a, &b| value(a).partial_cmp(&value(b)).unwrap())
@@ -139,7 +140,7 @@ fn best_move(p: &[f32; 9]) -> MoveDirection {
 }
 
 // dLoss/dOutput of `vision`: squared error for gains, cross-entropy for risks.
-pub(crate) fn loss_grad(output: &[f32], labels: &[f32; 9]) -> Vec<f32> {
+pub(crate) fn loss_grad(output: &[f32], labels: &[f32; VISION_OUTPUTS]) -> Vec<f32> {
     let mut grad = train::mse(&output[..3], &labels[..3]).1;
     grad.extend(train::bce_with_logits(&output[3..], &labels[3..]).1);
     grad[3..6]
@@ -175,7 +176,7 @@ pub(crate) fn fitness(mut act: impl FnMut(&GameState<Rng>) -> MoveDirection, see
 }
 
 /// Seconds of life and score of a game, or medians of many games.
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub struct TestResult {
     pub life: f32,
     pub score: f32,
@@ -198,6 +199,6 @@ pub(crate) fn test_result(
     }
     TestResult {
         life,
-        score: g.score_f() * 50.0,
+        score: g.score_f() * SCORE_SCALE,
     }
 }

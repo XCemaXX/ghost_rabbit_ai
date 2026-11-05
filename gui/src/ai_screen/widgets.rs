@@ -141,7 +141,7 @@ impl Ui<'_> {
 
     // Draws the frame. Returns true if an enabled widget is under the cursor.
     fn frame(&self, r: Rect, enabled: bool) -> bool {
-        let hovered = enabled && self.hovered(r);
+        let hovered = enabled && self.screen.mouse_world().is_some_and(|p| r.contains(p));
         self.fill(r, if hovered { FRAME_HOVER } else { FRAME_FILL });
         let s = self.screen.rect_to_screen(r);
         let line = if enabled { FRAME_LINE } else { DISABLED_LINE };
@@ -165,9 +165,5 @@ impl Ui<'_> {
             vec2(center - direction * half, y + half),
             if enabled { WHITE } else { DISABLED_LINE },
         );
-    }
-
-    fn hovered(&self, r: Rect) -> bool {
-        self.screen.mouse_world().is_some_and(|p| r.contains(p))
     }
 }

@@ -1,10 +1,10 @@
 use game_logic::{SCREEN_HEIGHT, SCREEN_WEIGHT};
 use macroquad::prelude::*;
 
-use bot::policy_job::POINTS;
-use bot::vision_job::VISION_ROUNDS;
+use bot::policy_job::TEST_GAMES;
 
-use super::models::{Models, PolicyKey, Selection};
+use super::models::{Models, Selection};
+use super::storage::PolicyKey;
 use super::widgets::{Align, LINE, TEXT, Ui, VALUE};
 use crate::resources::Backgrounds;
 
@@ -56,6 +56,7 @@ pub enum Training {
 }
 
 struct View {
+    my_model: bool,
     points: Vec<usize>,
     pretrained_enabled: bool,
     /// Some job runs: the choices are locked.
@@ -80,7 +81,7 @@ struct Card {
 }
 
 impl Card {
-    // A large index means the last point: the draw clamps it.
+    // A large index means the last point: each use clamps it to the list of that moment.
     fn new(title: &'static str, purpose: &'static str, unit: &'static str, color: Color) -> Self {
         Self {
             title,
@@ -115,7 +116,7 @@ impl Card {
 
         let choices = ["PRETRAINED", "MY MODEL"];
         let enabled = [!view.busy && view.pretrained_enabled, !view.busy];
-        let selected = self.my_model as usize;
+        let selected = view.my_model as usize;
         if let Some(i) = ui.choice(row(CONTROL_H), choices, selected, enabled, SMALL) {
             self.my_model = i == 1;
             self.index = usize::MAX;
@@ -123,29 +124,15 @@ impl Card {
         }
 
         let last = view.points.len() - 1;
-        self.index = self.index.min(last);
+        let index = self.index.min(last);
         let text = format!(
             "{} {} / {}",
-            self.unit, view.points[self.index], view.points[last]
+            self.unit, view.points[index], view.points[last]
         );
-        match ui.stepper(row(CONTROL_H), &text, !view.busy, SMALL) {
-            Some(-1) => {
-                self.index = if self.index == 0 {
-                    last
-                } else {
-                    self.index - 1
-                };
-                action = Action::NewGame;
-            }
-            Some(_) => {
-                self.index = if self.index == last {
-                    0
-                } else {
-                    self.index + 1
-                };
-                action = Action::NewGame;
-            }
-            None => {}
+        if let Some(step) = ui.stepper(row(CONTROL_H), &text, !view.busy, SMALL) {
+            let count = view.points.len() as i32;
+            self.index = (index as i32 + step).rem_euclid(count) as usize;
+            action = Action::NewGame;
         }
 
         ui.progress(row(PROGRESS_H), view.progress.unwrap_or(0.0), self.color);
@@ -202,22 +189,30 @@ impl Panel {
         }
     }
 
-    /// Game steps per screen frame.
+    /// How many times faster than real time the game runs.
     pub fn speed(&self) -> usize {
         SPEEDS[self.speed_index]
     }
 
     pub fn selection(&self, models: &Models) -> Selection {
-        let rounds = self.vision_points(models);
+        let rounds = models.rounds(self.vision.my_model);
         let round = rounds[self.vision.index.min(rounds.len() - 1)];
-        let key = (self.vision.my_model, round);
-        let generations = self.control_points(models, key);
+        let key = PolicyKey {
+            my_vision: self.vision.my_model,
+            round,
+        };
+        let generations = models.generations(key, self.my_policy());
         Selection {
             round,
             generation: generations[self.control.index.min(generations.len() - 1)],
             my_vision: self.vision.my_model,
-            my_policy: self.control.my_model,
+            my_policy: self.my_policy(),
         }
+    }
+
+    // A pretrained policy never runs on the player's `vision`.
+    fn my_policy(&self) -> bool {
+        self.control.my_model || self.vision.my_model
     }
 
     /// Shows the last point of the player's policy.
@@ -231,31 +226,10 @@ impl Panel {
         self.control.select_my_model();
     }
 
-    fn vision_points(&self, models: &Models) -> Vec<usize> {
-        if self.vision.my_model {
-            // An untrained net is round 0.
-            (0..models.my_vision_rounds().max(1)).collect()
-        } else {
-            (0..VISION_ROUNDS).collect()
-        }
-    }
-
-    fn control_points(&self, models: &Models, key: PolicyKey) -> Vec<usize> {
-        if !self.control.my_model {
-            return POINTS.to_vec();
-        }
-        let generations = models.my_generations(key);
-        // An untrained policy is generation 0.
-        if generations.is_empty() {
-            vec![0]
-        } else {
-            generations
-        }
-    }
-
     fn vision_view(&self, models: &Models, busy: bool, progress: Option<f32>) -> View {
         View {
-            points: self.vision_points(models),
+            my_model: self.vision.my_model,
+            points: models.rounds(self.vision.my_model),
             pretrained_enabled: true,
             busy,
             progress,
@@ -269,16 +243,16 @@ impl Panel {
 
     fn control_view(&self, models: &Models, busy: bool, progress: Option<f32>) -> View {
         let key = self.selection(models).policy_key();
-        let vision_ready = !self.vision.my_model || models.my_vision_rounds() > 0;
         View {
-            points: self.control_points(models, key),
+            my_model: self.my_policy(),
+            points: models.generations(key, self.my_policy()),
             pretrained_enabled: !self.vision.my_model,
             busy,
             progress,
             next: models.next_point(key),
-            can_train: self.control.my_model && vision_ready,
+            can_train: self.my_policy() && models.can_train_policy(key),
             train: Action::TrainPolicy(key),
-            can_reset: self.control.my_model && models.has_points(key),
+            can_reset: self.my_policy() && models.has_points(key),
             reset: Action::ResetPolicy(key),
         }
     }
@@ -286,32 +260,25 @@ impl Panel {
     // The result belongs to the pair of nets, so it goes below both cards.
     fn draw_result(&self, ui: &Ui, models: &Models, r: Rect, job_text: Option<&str>) {
         ui.fill(Rect::new(r.x, r.y, r.w, GAP / 4.0), LINE);
-        let selection = self.selection(models);
         let row = |i: f32, h: f32| Rect::new(r.x, r.y + GAP + i * (DETAIL_H + GAP), r.w, h);
+        let headline = |text: &str| ui.text(row(0.0, RESULT_H), text, BIG, VALUE, Align::Left);
         // A point finished during a job says little: the job goes on to its target.
         if let Some(text) = job_text {
-            ui.text(row(0.0, RESULT_H), text, BIG, VALUE, Align::Left);
+            headline(text);
             return;
         }
-        if models.save_failed {
+        if models.save_failed() {
             let text = "Not saved: browser storage is full";
             ui.text(row(2.0, DETAIL_H), text, TINY, RESET_COLOR, Align::Left);
         }
-        let Some(result) = models.result(selection) else {
-            ui.text(
-                row(0.0, RESULT_H),
-                "Not trained yet",
-                BIG,
-                VALUE,
-                Align::Left,
-            );
+        let Some(result) = models.result(self.selection(models)) else {
+            headline("Not trained yet");
             return;
         };
         let (life, score) = (result.life, result.score);
-        let text = format!("Lives ~{life:.0} s, ~{score:.0} points");
-        ui.text(row(0.0, RESULT_H), &text, BIG, VALUE, Align::Left);
-        let detail = "Half of 200 test games did better";
-        ui.text(row(1.0, DETAIL_H), detail, TINY, TEXT, Align::Left);
+        headline(&format!("Lives ~{life:.0} s, ~{score:.0} points"));
+        let detail = format!("Half of {TEST_GAMES} test games did better");
+        ui.text(row(1.0, DETAIL_H), &detail, TINY, TEXT, Align::Left);
     }
 
     // Goes after the game: the game paints everything outside its field as bars.
@@ -343,13 +310,14 @@ impl Panel {
             Some(Training::Policy(p)) => (None, Some(p)),
             None => (None, None),
         };
+        let my_policy_before = self.my_policy();
         let view = self.vision_view(models, busy, vision_progress);
         let (vision, y) = self
             .vision
             .draw(ui, inner.x, inner.w, r.y + PANEL_TITLE_H, &view);
-        // A pretrained policy never runs on the player's `vision`.
-        if self.vision.my_model {
-            self.control.my_model = true;
+        // The list of generations has just changed: show its last point.
+        if self.my_policy() != my_policy_before {
+            self.control.index = usize::MAX;
         }
         let view = self.control_view(models, busy, control_progress);
         let (control, y) = self.control.draw(ui, inner.x, inner.w, y + CARD_GAP, &view);
@@ -365,11 +333,17 @@ impl Panel {
             Rect::new(inner.x, y + GAP, inner.w, 0.0),
             job_text,
         );
-        if vision != Action::None {
+        let action = if vision != Action::None {
             vision
         } else {
             control
+        };
+        // The confirmation belongs to the model that was selected when it was asked.
+        if action != Action::None {
+            self.vision.reset_asked_at = f64::NEG_INFINITY;
+            self.control.reset_asked_at = f64::NEG_INFINITY;
         }
+        action
     }
 }
 

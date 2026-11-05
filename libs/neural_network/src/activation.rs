@@ -1,13 +1,12 @@
-#[derive(Debug, Clone, Copy, PartialEq, Default)]
+#[derive(Debug, Clone, Copy)]
 pub enum Activation {
-    #[default]
     Relu,
     Tanh,
     Linear,
 }
 
 impl Activation {
-    pub fn apply_all(self, xs: &mut [f32]) {
+    pub(crate) fn apply_all(self, xs: &mut [f32]) {
         match self {
             Activation::Relu => xs.iter_mut().for_each(|x| *x = x.max(0.0)),
             Activation::Tanh => xs.iter_mut().for_each(|x| *x = tanh(*x)),
@@ -16,7 +15,7 @@ impl Activation {
     }
 
     // Derivative written through the output y = apply(x): backward pass keeps only outputs.
-    pub fn derivative(self, y: f32) -> f32 {
+    pub(crate) fn derivative(self, y: f32) -> f32 {
         match self {
             Activation::Relu => (y > 0.0) as u8 as f32,
             Activation::Tanh => 1.0 - y * y,
@@ -26,7 +25,7 @@ impl Activation {
 }
 
 // Rational approximation from Eigen: a few ulp from `f32::tanh`, but several times faster.
-// Beyond the clamp, tanh is 1 in f32.
+// At the clamp the result is exactly 1, so the derivative through the output does not go negative.
 fn tanh(x: f32) -> f32 {
     let x = x.clamp(-7.905_311, 7.905_311);
     let x2 = x * x;
