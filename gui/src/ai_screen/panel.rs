@@ -22,6 +22,8 @@ const CLEAN_TO: f32 = 490.0 / 640.0;
 
 const SPEEDS: [usize; 3] = [1, 2, 4];
 
+const RESET_CONFIRM_SEC: f64 = 3.0;
+
 const MARGIN: f32 = SCREEN_WEIGHT * 0.05;
 const GAP: f32 = SCREEN_HEIGHT * 0.012;
 const PANEL_TITLE_H: f32 = SCREEN_HEIGHT * 0.07;
@@ -43,11 +45,13 @@ pub enum Action {
     TrainVision,
     TrainPolicy(PolicyKey),
     Stop,
+    ResetVision,
+    ResetPolicy(PolicyKey),
 }
 
 #[derive(Clone, Copy)]
 pub enum Training {
-    Vision(f32),
+    Vision { progress: f32, rebuilding: bool },
     Policy(f32),
 }
 
@@ -61,6 +65,8 @@ struct View {
     next: Option<usize>,
     can_train: bool,
     train: Action,
+    can_reset: bool,
+    reset: Action,
 }
 
 struct Card {
@@ -70,6 +76,7 @@ struct Card {
     color: Color,
     my_model: bool,
     index: usize,
+    reset_asked_at: f64,
 }
 
 impl Card {
@@ -82,6 +89,7 @@ impl Card {
             color,
             my_model: false,
             index: usize::MAX,
+            reset_asked_at: f64::NEG_INFINITY,
         }
     }
 
@@ -159,7 +167,22 @@ impl Card {
                 action = view.train;
             }
         }
-        ui.button(right, "RESET", SMALL, RESET_COLOR, false);
+        let asked = get_time() - self.reset_asked_at < RESET_CONFIRM_SEC;
+        let reset = if asked { "SURE?" } else { "RESET" };
+        if ui.button(
+            right,
+            reset,
+            SMALL,
+            RESET_COLOR,
+            view.can_reset && !view.busy,
+        ) {
+            if asked {
+                self.reset_asked_at = f64::NEG_INFINITY;
+                action = view.reset;
+            } else {
+                self.reset_asked_at = get_time();
+            }
+        }
         (action, next_y)
     }
 }
@@ -239,6 +262,8 @@ impl Panel {
             next: models.next_vision_round(),
             can_train: self.vision.my_model,
             train: Action::TrainVision,
+            can_reset: self.vision.my_model && models.my_vision_rounds() > 0,
+            reset: Action::ResetVision,
         }
     }
 
@@ -253,18 +278,24 @@ impl Panel {
             next: models.next_point(key),
             can_train: self.control.my_model && vision_ready,
             train: Action::TrainPolicy(key),
+            can_reset: self.control.my_model && models.has_points(key),
+            reset: Action::ResetPolicy(key),
         }
     }
 
     // The result belongs to the pair of nets, so it goes below both cards.
-    fn draw_result(&self, ui: &Ui, models: &Models, r: Rect, busy: bool) {
+    fn draw_result(&self, ui: &Ui, models: &Models, r: Rect, job_text: Option<&str>) {
         ui.fill(Rect::new(r.x, r.y, r.w, GAP / 4.0), LINE);
         let selection = self.selection(models);
         let row = |i: f32, h: f32| Rect::new(r.x, r.y + GAP + i * (DETAIL_H + GAP), r.w, h);
         // A point finished during a job says little: the job goes on to its target.
-        if busy {
-            ui.text(row(0.0, RESULT_H), "Training...", BIG, VALUE, Align::Left);
+        if let Some(text) = job_text {
+            ui.text(row(0.0, RESULT_H), text, BIG, VALUE, Align::Left);
             return;
+        }
+        if models.save_failed {
+            let text = "Not saved: browser storage is full";
+            ui.text(row(2.0, DETAIL_H), text, TINY, RESET_COLOR, Align::Left);
         }
         let Some(life) = models.life(selection) else {
             ui.text(
@@ -283,7 +314,7 @@ impl Panel {
         let inherited = models
             .inherited(selection.policy_key())
             .filter(|_| selection.my_policy);
-        if let Some((round, generation)) = inherited {
+        if let Some((round, generation)) = inherited.filter(|_| !models.save_failed) {
             let text = format!("Control gen 0 = elite of round {round}, gen {generation}");
             ui.text(row(2.0, DETAIL_H), &text, TINY, TEXT, Align::Left);
         }
@@ -314,7 +345,7 @@ impl Panel {
 
         let busy = training.is_some();
         let (vision_progress, control_progress) = match training {
-            Some(Training::Vision(p)) => (Some(p), None),
+            Some(Training::Vision { progress, .. }) => (Some(progress), None),
             Some(Training::Policy(p)) => (None, Some(p)),
             None => (None, None),
         };
@@ -328,7 +359,18 @@ impl Panel {
         }
         let view = self.control_view(models, busy, control_progress);
         let (control, y) = self.control.draw(ui, inner.x, inner.w, y + CARD_GAP, &view);
-        self.draw_result(ui, models, Rect::new(inner.x, y + GAP, inner.w, 0.0), busy);
+        let job_text = training.map(|t| match t {
+            Training::Vision {
+                rebuilding: true, ..
+            } => "Restoring frames...",
+            _ => "Training...",
+        });
+        self.draw_result(
+            ui,
+            models,
+            Rect::new(inner.x, y + GAP, inner.w, 0.0),
+            job_text,
+        );
         if vision != Action::None {
             vision
         } else {

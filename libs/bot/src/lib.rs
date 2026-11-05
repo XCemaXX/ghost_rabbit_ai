@@ -129,8 +129,16 @@ pub fn policy_at_generation(checkpoints: &[u8], generation: usize) -> Network {
     from_bytes(&policy_topology(), &checkpoints[start..start + size])
 }
 
-fn policy_weights() -> usize {
-    policy_topology()
+pub fn policy_weights() -> usize {
+    weights_of(&policy_topology())
+}
+
+pub fn vision_weights() -> usize {
+    weights_of(&vision_topology())
+}
+
+fn weights_of(topology: &[LayerTopology]) -> usize {
+    topology
         .windows(2)
         .map(|l| (l[0].neurons + 1) * l[1].neurons)
         .sum()

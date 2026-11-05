@@ -8,7 +8,7 @@ The full research log (in Russian) and the experiment harness `ai_lab` are in th
 - The bot plays the Unreal difficulty.
 - In the game, the bot sees only the screen. It gets no hints, no copy of the game state, and no hand-written rules.
 - Training can use anything, including a copy of the game.
-- Training runs natively. The browser only plays. (Training in the browser is a later step.)
+- `tools/bot_train` makes the pretrained nets natively. A player can also train own nets in the browser, on the AI screen.
 
 ## Metric
 
@@ -106,14 +106,25 @@ Per unit of work, one thread:
 | `vision` label, one frame (rollouts on the game copy) | 16 µs | 25 µs |
 | `vision` fit, one frame and epoch | 2.6 µs | ~9 µs |
 
-Training in the browser (one WASM thread, estimate from the table):
+Training in the browser (one WASM thread, 12 ms of each screen frame; estimate from the table):
 
 | Stage | Time |
 |---|---|
-| `policy`, 5 generations (one button press) | ~5 s |
-| `vision`, 2 rounds | ~1 min |
-| `vision`, 4 rounds | ~3 min |
-| `vision`, 8 rounds | ~10 min |
+| `policy`, generation 0 → 5 | a few seconds |
+| `policy`, generation 70 → 100 | ~40 s |
+| `vision`, round 0 | ~25 s |
+| `vision`, round 7 | ~3 min |
+| `vision`, all 8 rounds | ~14 min |
+
+## Training in the browser
+
+- The same code as `tools/bot_train`, in small steps: one game of the GA; one labelled frame or one part of a batch for `vision`.
+- The game stands while a job runs. A hidden tab gets no frames, so the job waits.
+- `policy` stops at generations 0, 5, 10, 20, 40, 70, 100. The score grows fast at the start; later neighbours differ mostly by noise.
+- A `policy` belongs to the `vision` it trained on. A pretrained `policy` never runs on the player's `vision`.
+- The first `policy` on a round starts from the elite of the nearest earlier round of the same `vision`.
+- Browser storage keeps own nets: all `vision` rounds, the best `policy` of each point, and the last elite. At most ~0.85 MB in base64.
+- The frames of `vision` (~1.8 million, ~190 MB) are not stored. After a page reload, the next round first plays the earlier rounds again: the same games and nets give the same frames.
 
 ## Library changes
 

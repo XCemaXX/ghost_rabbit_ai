@@ -1,9 +1,10 @@
 mod models;
 mod panel;
+mod storage;
 mod widgets;
 
 use bot::policy_job::PolicyJob;
-use bot::vision_job::VisionJob;
+use bot::vision_job::{VISION_ROUNDS, VisionJob};
 use game_logic::{Difficulty, SCREEN_HEIGHT, SCREEN_WEIGHT};
 use macroquad::prelude::*;
 
@@ -67,7 +68,7 @@ pub async fn run(
                 if running.is_done() {
                     match job.take().unwrap() {
                         Job::Vision(vision_job) => {
-                            models.finish_vision_job(vision_job);
+                            models.finish_vision_job(*vision_job);
                             panel.select_my_vision();
                         }
                         Job::Policy(..) => panel.select_my_policy(),
@@ -94,9 +95,22 @@ pub async fn run(
             match panel.draw(&ui, models, training) {
                 Action::None => {}
                 Action::NewGame => new_game = true,
-                Action::TrainVision => job = Some(Job::Vision(models.start_vision_job())),
+                Action::TrainVision => job = Some(Job::Vision(Box::new(models.start_vision_job()))),
                 Action::TrainPolicy(key) => {
                     job = Some(Job::Policy(models.start_policy_job(key), key));
+                }
+                Action::ResetVision => {
+                    models.reset_vision();
+                    storage::remove_vision();
+                    for round in 0..VISION_ROUNDS {
+                        storage::remove_policy((true, round));
+                    }
+                    new_game = true;
+                }
+                Action::ResetPolicy(key) => {
+                    models.reset_policy(key);
+                    storage::remove_policy(key);
+                    new_game = true;
                 }
                 // The game may stand on a net that training has just replaced.
                 Action::Stop => {
@@ -113,7 +127,7 @@ pub async fn run(
 }
 
 enum Job {
-    Vision(VisionJob),
+    Vision(Box<VisionJob>),
     Policy(PolicyJob, PolicyKey),
 }
 
@@ -127,7 +141,10 @@ impl Job {
 
     fn training(&self) -> Training {
         match self {
-            Job::Vision(job) => Training::Vision(job.progress()),
+            Job::Vision(job) => Training::Vision {
+                progress: job.progress(),
+                rebuilding: job.is_rebuilding(),
+            },
             Job::Policy(job, _) => Training::Policy(job.progress()),
         }
     }
@@ -136,7 +153,7 @@ impl Job {
 // The results already finished stay.
 fn stop_job(job: Option<Job>, models: &mut Models) {
     if let Some(Job::Vision(job)) = job {
-        models.stop_vision_job(job);
+        models.stop_vision_job(*job);
     }
 }
 
@@ -148,7 +165,8 @@ fn train_in_frame(job: &mut Job, models: &mut Models) {
             Job::Vision(job) => job.step(),
             Job::Policy(job, key) => {
                 if let Some(point) = job.step() {
-                    models.add_point(*key, point);
+                    let saved = storage::save_policy(*key, models.add_point(*key, point));
+                    models.save_failed = !saved;
                 }
             }
         }

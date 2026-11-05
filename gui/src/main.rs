@@ -27,7 +27,7 @@ fn window_conf() -> Conf {
 #[macroquad::main(window_conf)]
 async fn main() {
     let mut record_tables = RecordTables::new();
-    let mut ai_models = ai_screen::Models::new();
+    let mut ai_models = ai_screen::Models::with_saved();
     let resources = Resources::load_resources();
     let mut options = Options::new();
     let mut background_music: Option<Playback> = None;

@@ -55,9 +55,13 @@ pub fn apply_batch(adam: &mut Adam, vision: &mut Network, grads: Vec<Vec<f32>>, 
 }
 
 /// One DAgger round of `vision`, in small steps: the net plays, the game copy labels the frames,
-/// the net trains on all frames.
+/// the net trains on all frames. Without frames, it first plays the earlier rounds again:
+/// the same games and nets give the same frames.
 pub struct VisionJob {
     vision: Network,
+    history: Vec<Network>,
+    first_collect_round: u64,
+    collect_round: u64,
     round: u64,
     games: u64,
     data: Vec<Sample>,
@@ -83,19 +87,22 @@ enum Phase {
 }
 
 impl VisionJob {
-    /// `previous` is the net of the last round; `None` for the first round.
-    pub fn new(
-        previous: Option<Network>,
-        mut data: Vec<Sample>,
-        mut rng: Rng,
-        round: u64,
-        games: u64,
-    ) -> Self {
-        let vision = previous.unwrap_or_else(|| Network::new(&mut rng, &vision_topology()));
+    /// `rounds` are the nets of the earlier rounds.
+    pub fn new(rounds: &[Network], mut data: Vec<Sample>, mut rng: Rng, games: u64) -> Self {
+        let vision = rounds
+            .last()
+            .cloned()
+            .unwrap_or_else(|| Network::new(&mut rng, &vision_topology()));
+        let round = rounds.len() as u64;
+        let collect_round = if data.is_empty() { 0 } else { round };
         // Growing by doubling would copy all frames inside one step, and hold twice the memory.
-        data.reserve(EXPECTED_NEW_FRAMES);
+        let frames = (rounds.len() + 1) * EXPECTED_NEW_FRAMES;
+        data.reserve(frames.saturating_sub(data.len()));
         Self {
             vision,
+            history: rounds.to_vec(),
+            first_collect_round: collect_round,
+            collect_round,
             round,
             games,
             old_frames: data.len(),
@@ -103,9 +110,14 @@ impl VisionJob {
             rng,
             phase: Phase::Collect {
                 game: 0,
-                current: LabeledGame::new(vision_seed(round, 0)),
+                current: LabeledGame::new(vision_seed(collect_round, 0)),
             },
         }
+    }
+
+    /// True while the frames of the earlier rounds are played again.
+    pub fn is_rebuilding(&self) -> bool {
+        self.collect_round < self.round && matches!(self.phase, Phase::Collect { .. })
     }
 
     pub fn is_done(&self) -> bool {
@@ -124,11 +136,16 @@ impl VisionJob {
     }
 
     pub fn progress(&self) -> f32 {
-        let frames = (self.old_frames + EXPECTED_NEW_FRAMES) as f32;
+        let frames = (self.round + 1) as f32 * EXPECTED_NEW_FRAMES as f32;
+        let collect_rounds = (self.round - self.first_collect_round + 1) as f32;
+        let collect_cost = COLLECT_COST * collect_rounds;
         let collect_share =
-            COLLECT_COST / (COLLECT_COST + VISION_EPOCHS as f32 * frames * FIT_FRAME_COST);
+            collect_cost / (collect_cost + VISION_EPOCHS as f32 * frames * FIT_FRAME_COST);
         match &self.phase {
-            Phase::Collect { game, .. } => collect_share * *game as f32 / self.games as f32,
+            Phase::Collect { game, .. } => {
+                let done = (self.collect_round - self.first_collect_round) as f32;
+                collect_share * (done + *game as f32 / self.games as f32) / collect_rounds
+            }
             Phase::Fit {
                 order,
                 epoch,
@@ -146,12 +163,22 @@ impl VisionJob {
     pub fn step(&mut self) {
         match &mut self.phase {
             Phase::Collect { game, current } => {
-                let player = (self.round > 0).then_some(&self.vision);
+                let player = match self.collect_round {
+                    0 => None,
+                    r => Some(&self.history[r as usize - 1]),
+                };
                 self.data.extend(current.step(player));
                 if current.is_done() {
                     *game += 1;
                     if *game < self.games {
-                        *current = LabeledGame::new(vision_seed(self.round, *game));
+                        *current = LabeledGame::new(vision_seed(self.collect_round, *game));
+                    } else if self.collect_round < self.round {
+                        self.collect_round += 1;
+                        *game = 0;
+                        *current = LabeledGame::new(vision_seed(self.collect_round, 0));
+                        if self.collect_round == self.round {
+                            self.old_frames = self.data.len();
+                        }
                     } else {
                         let order: Vec<usize> = (0..self.data.len()).collect();
                         self.phase = Phase::Fit {
@@ -214,7 +241,7 @@ mod tests {
 
     #[test]
     fn vision_job_trains_and_stop_keeps_old_frames() {
-        let mut job = VisionJob::new(None, Vec::new(), Rng(5), 0, 2);
+        let mut job = VisionJob::new(&[], Vec::new(), Rng(5), 2);
         let before: Vec<f32> = job.vision.weights().collect();
         let mut progress = 0.0;
         while !job.is_done() {
@@ -228,7 +255,19 @@ mod tests {
         let frames = data.len();
         assert!(frames > 0);
 
-        let mut next = VisionJob::new(Some(vision), data, rng, 1, 2);
+        let first_inputs = data[0].inputs.clone();
+
+        // The frames lost, as after a page reload: the job plays the first round again.
+        let rounds = [vision];
+        let mut rebuilt = VisionJob::new(&rounds, Vec::new(), rng.clone(), 2);
+        while rebuilt.is_rebuilding() {
+            rebuilt.step();
+        }
+        assert_eq!(rebuilt.data.len(), frames);
+        assert_eq!(rebuilt.data[0].inputs, first_inputs);
+
+        let mut next = VisionJob::new(&rounds, data, rng, 2);
+        assert_eq!(next.progress(), 0.0);
         next.step();
         next.step();
         assert_eq!(next.stop().0.len(), frames);

@@ -24,6 +24,12 @@ Native tests on Linux need ALSA headers: `sudo apt install libasound2-dev`. Then
 <img src="./docs/ghost_rabbit_gameplay.gif" width="300" height="457" />
 
 # AI
-The AI button in the main menu starts a bot. It plays Unreal and starts again after each death.
-The bot sees only the screen. How it is built and trained: `docs/ai_research.md`.
+The AI button in the main menu opens the AI scree. A bot plays Unreal on the left and starts again after each death.
+The bot sees only the screen. It has two nets: `vision` learns to see danger, `control` learns to choose moves.
+
+On the panel on the right you can:
+- choose pretrained nets and see how the bot plays at each stage of training;
+- train your own nets in the browser, step by step. The browser keeps them. All 8 rounds of `vision` take about 14 minutes.
+
+How the bot is built and trained: `docs/ai_research.md`.
 Retrain the weights in `resources/bot/`: `cargo run --release -p bot_train`.
