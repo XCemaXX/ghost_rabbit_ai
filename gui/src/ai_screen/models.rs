@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use super::storage;
 use bot::policy_job::{POINTS, Point, PolicyGa, PolicyJob};
 use bot::train::Sample;
 use bot::vision_job::{VISION_GAMES, VISION_ROUNDS, VisionJob};
@@ -48,11 +49,20 @@ impl Selection {
     }
 }
 
+/// A finished point of the player's policy.
+pub struct MyPoint {
+    pub generation: usize,
+    pub policy: Network,
+    pub life: f32,
+}
+
 /// Policies trained by the player on one `vision`.
-#[derive(Default)]
-struct MyPolicy {
-    points: Vec<Point>,
-    inherited: Option<(usize, usize)>,
+/// Training goes on from `elite` and `rng`, the state at the last point.
+pub struct MyPolicy {
+    pub points: Vec<MyPoint>,
+    pub elite: Vec<Network>,
+    pub rng: Rng,
+    pub inherited: Option<(usize, usize)>,
 }
 
 /// The rounds of the player's `vision`, and the frames for the next round.
@@ -66,6 +76,7 @@ pub struct Models {
     lives: HashMap<(usize, usize), u32>,
     my_policies: HashMap<PolicyKey, MyPolicy>,
     my_vision: MyVision,
+    pub save_failed: bool,
 }
 
 impl Models {
@@ -84,6 +95,7 @@ impl Models {
                 data: Vec::new(),
                 rng: random_rng(),
             },
+            save_failed: false,
         }
     }
 
@@ -130,16 +142,17 @@ impl Models {
     pub fn start_vision_job(&mut self) -> VisionJob {
         let vision = &mut self.my_vision;
         VisionJob::new(
-            vision.rounds.last().cloned(),
+            &vision.rounds,
             std::mem::take(&mut vision.data),
             vision.rng.clone(),
-            vision.rounds.len() as u64,
             VISION_GAMES,
         )
     }
 
     pub fn finish_vision_job(&mut self, job: VisionJob) {
         let (net, data, rng) = job.finish();
+        let round = self.my_vision.rounds.len();
+        self.save_failed = !storage::save_vision_round(round, &net, &rng);
         self.my_vision.rounds.push(net);
         self.my_vision.data = data;
         self.my_vision.rng = rng;
@@ -172,22 +185,29 @@ impl Models {
     pub fn start_policy_job(&mut self, key: PolicyKey) -> PolicyJob {
         let target = self.next_point(key).expect("the last point is reached");
         let (my_vision, round) = key;
-        let ga = if let Some(last) = self.my_policies.get(&key).and_then(|p| p.points.last()) {
-            PolicyGa::from_elite(last.rng.clone(), &last.elite, last.generation + 1)
+        let last_generation = |p: &MyPolicy| p.points.last().map(|point| point.generation);
+        let ga = if let Some((policy, generation)) = self
+            .my_policies
+            .get(&key)
+            .and_then(|p| Some((p, last_generation(p)?)))
+        {
+            PolicyGa::from_elite(policy.rng.clone(), &policy.elite, generation + 1)
         } else {
             let earlier = (0..round).rev().find_map(|r| {
-                let last = self.my_policies.get(&(my_vision, r))?.points.last()?;
-                Some((r, last))
+                let policy = self.my_policies.get(&(my_vision, r))?;
+                Some((r, last_generation(policy)?, policy))
             });
             match earlier {
-                Some((r, last)) => {
-                    let inherited = Some((r, last.generation));
-                    let ga = PolicyGa::from_elite(random_rng(), &last.elite, 0);
+                Some((r, generation, policy)) => {
+                    let rng = random_rng();
+                    let ga = PolicyGa::from_elite(rng.clone(), &policy.elite, 0);
                     self.my_policies.insert(
                         key,
                         MyPolicy {
-                            inherited,
-                            ..Default::default()
+                            points: Vec::new(),
+                            elite: Vec::new(),
+                            rng,
+                            inherited: Some((r, generation)),
                         },
                     );
                     ga
@@ -198,11 +218,60 @@ impl Models {
         PolicyJob::new(self.load_vision(my_vision, round), ga, target)
     }
 
-    pub fn add_point(&mut self, key: PolicyKey, point: Point) {
-        self.my_policies.entry(key).or_default().points.push(point);
+    /// Returns the policy with the new point, to be saved.
+    pub fn add_point(&mut self, key: PolicyKey, point: Point) -> &MyPolicy {
+        let policy = self.my_policies.entry(key).or_insert_with(|| MyPolicy {
+            points: Vec::new(),
+            elite: Vec::new(),
+            rng: point.rng.clone(),
+            inherited: None,
+        });
+        policy.points.push(MyPoint {
+            generation: point.generation,
+            policy: point.policy,
+            life: point.life,
+        });
+        policy.elite = point.elite;
+        policy.rng = point.rng;
+        policy
     }
 
-    fn my_point(&self, s: Selection) -> Option<&Point> {
+    pub fn has_points(&self, key: PolicyKey) -> bool {
+        !self.my_generations(key).is_empty()
+    }
+
+    pub fn reset_policy(&mut self, key: PolicyKey) {
+        self.my_policies.remove(&key);
+    }
+
+    /// Removes the player's `vision` and the policies trained on it.
+    pub fn reset_vision(&mut self) {
+        self.my_vision.rounds.clear();
+        self.my_vision.data = Vec::new();
+        self.my_vision.rng = random_rng();
+        self.my_policies.retain(|&(my_vision, _), _| !my_vision);
+    }
+
+    /// Adds what the browser keeps from earlier visits.
+    pub fn with_saved() -> Self {
+        let mut models = Self::new();
+        let (rounds, rng) = storage::load_vision();
+        models.my_vision.rounds = rounds;
+        if let Some(rng) = rng {
+            models.my_vision.rng = rng;
+        }
+        for round in 0..VISION_ROUNDS {
+            for my_vision in [false, true] {
+                let key = (my_vision, round);
+                if let Some(policy) = storage::load_policy(key) {
+                    models.my_policies.insert(key, policy);
+                }
+            }
+        }
+        models
+    }
+
+    fn my_point(&self, s: Selection) -> Option<&MyPoint> {
         self.my_policies
             .get(&s.policy_key())?
             .points
@@ -275,6 +344,18 @@ mod tests {
         assert_eq!(models.inherited((false, 0)), None);
         models.start_policy_job((true, 5));
         assert_eq!(models.inherited((true, 5)), None);
+        models.reset_policy((false, 3));
+        assert!(!models.has_points((false, 3)));
+    }
+
+    #[test]
+    fn reset_vision_removes_only_its_policies() {
+        let mut models = Models::new();
+        models.add_point((true, 1), point(POINTS[1]));
+        models.add_point((false, 1), point(POINTS[1]));
+        models.reset_vision();
+        assert!(!models.has_points((true, 1)));
+        assert!(models.has_points((false, 1)));
     }
 
     #[test]
