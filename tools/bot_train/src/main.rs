@@ -1,7 +1,7 @@
 // Trains the bot and writes its weights to resources/bot.
 // Run by hand (`cargo run --release -p bot_train`): it takes minutes, so CI does not run it.
 use bot::policy_job::{self, GAMES, POPULATION, PolicyGa, TEST_GAMES};
-use bot::train::{Sample, play_and_label};
+use bot::train::{Sample, TestResult, play_and_label};
 use bot::vision_job::{self, VISION_EPOCHS, VISION_GAMES, VISION_ROUNDS};
 use bot::{GENERATION_STEP, MAX_GENERATION, Rng, to_bytes, vision_topology};
 use neural_network::Network;
@@ -17,17 +17,18 @@ fn main() {
     }
 
     // One GA per vision round; rounds run side by side.
-    let policies: Vec<Vec<(usize, f32, Network)>> = visions
+    let policies: Vec<Vec<(usize, TestResult, Network)>> = visions
         .par_iter()
         .enumerate()
         .map(|(round, vision)| train_policy(vision, round))
         .collect();
-    let mut scores = String::from("round,generation,median_life\n");
+    let mut scores = String::from("round,generation,median_life,median_score\n");
     for (round, checkpoints) in policies.iter().enumerate() {
         let mut bytes = Vec::new();
-        for (generation, life, policy) in checkpoints {
+        for (generation, result, policy) in checkpoints {
             bytes.extend(to_bytes(policy));
-            scores += &format!("{round},{generation},{life:.0}\n");
+            let (life, score) = (result.life, result.score);
+            scores += &format!("{round},{generation},{life:.0},{score:.0}\n");
         }
         std::fs::write(dir.join(format!("policy_r{round}.bin")), bytes).unwrap();
     }
@@ -76,8 +77,8 @@ fn fit(vision: &mut Network, data: &[Sample], rng: &mut Rng) {
     }
 }
 
-// Returns (generation, held-out median life, best policy) every GENERATION_STEP generations.
-fn train_policy(vision: &Network, round: usize) -> Vec<(usize, f32, Network)> {
+// Returns (generation, held-out medians, best policy) every GENERATION_STEP generations.
+fn train_policy(vision: &Network, round: usize) -> Vec<(usize, TestResult, Network)> {
     let mut ga = PolicyGa::new(Rng(21));
     let mut checkpoints = Vec::new();
     for generation in 0..=MAX_GENERATION {
@@ -92,13 +93,14 @@ fn train_policy(vision: &Network, round: usize) -> Vec<(usize, f32, Network)> {
             .collect();
         if generation.is_multiple_of(GENERATION_STEP) {
             let policy = &ga.population[policy_job::best(&fitness)];
-            let lives = (0..TEST_GAMES)
+            let results: Vec<TestResult> = (0..TEST_GAMES)
                 .into_par_iter()
                 .map(|k| policy_job::test_game(vision, policy, k))
                 .collect();
-            let life = policy_job::median_life(lives);
-            println!("round {round} generation {generation}: {life:.0} s");
-            checkpoints.push((generation, life, policy.clone()));
+            let result = policy_job::median_result(&results);
+            let (life, score) = (result.life, result.score);
+            println!("round {round} generation {generation}: {life:.0} s, {score:.0} points");
+            checkpoints.push((generation, result, policy.clone()));
         }
         ga.next_generation(&fitness);
     }

@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use super::storage;
 use bot::policy_job::{POINTS, Point, PolicyGa, PolicyJob};
-use bot::train::Sample;
+use bot::train::{Sample, TestResult};
 use bot::vision_job::{VISION_GAMES, VISION_ROUNDS, VisionJob};
 use bot::{Network, Rng};
 use macroquad::miniquad;
@@ -27,7 +27,7 @@ const POLICIES: [&[u8]; VISION_ROUNDS] = [
     include_bytes!("../../../resources/bot/policy_r6.bin"),
     include_bytes!("../../../resources/bot/policy_r7.bin"),
 ];
-const LIVES: &str = include_str!("../../../resources/bot/scores.csv");
+const RESULTS: &str = include_str!("../../../resources/bot/scores.csv");
 
 // Seed of the nets shown before any training.
 const UNTRAINED_SEED: u64 = 1;
@@ -53,7 +53,7 @@ impl Selection {
 pub struct MyPoint {
     pub generation: usize,
     pub policy: Network,
-    pub life: f32,
+    pub result: TestResult,
 }
 
 /// Policies trained by the player on one `vision`.
@@ -73,7 +73,7 @@ struct MyVision {
 }
 
 pub struct Models {
-    lives: HashMap<(usize, usize), u32>,
+    results: HashMap<(usize, usize), TestResult>,
     my_policies: HashMap<PolicyKey, MyPolicy>,
     my_vision: MyVision,
     pub save_failed: bool,
@@ -82,13 +82,14 @@ pub struct Models {
 impl Models {
     pub fn new() -> Self {
         let parse = |line: &str| {
-            let mut fields = line.split(',').map(|f| f.parse().unwrap());
+            let mut fields = line.split(',').map(|f| f.parse::<f32>().unwrap());
             let mut next = || fields.next().unwrap();
             let key = (next() as usize, next() as usize);
-            (key, next())
+            let (life, score) = (next(), next());
+            (key, TestResult { life, score })
         };
         Self {
-            lives: LIVES.lines().skip(1).map(parse).collect(),
+            results: RESULTS.lines().skip(1).map(parse).collect(),
             my_policies: HashMap::new(),
             my_vision: MyVision {
                 rounds: Vec::new(),
@@ -120,12 +121,12 @@ impl Models {
         }
     }
 
-    /// Median seconds of life; `None` for an untrained policy of the player.
-    pub fn life(&self, s: Selection) -> Option<u32> {
+    /// Medians of the test games; `None` for an untrained policy of the player.
+    pub fn result(&self, s: Selection) -> Option<TestResult> {
         if s.my_policy {
-            self.my_point(s).map(|point| point.life.round() as u32)
+            self.my_point(s).map(|point| point.result)
         } else {
-            Some(self.lives[&(s.round, s.generation)])
+            Some(self.results[&(s.round, s.generation)])
         }
     }
 
@@ -229,7 +230,7 @@ impl Models {
         policy.points.push(MyPoint {
             generation: point.generation,
             policy: point.policy,
-            life: point.life,
+            result: point.result,
         });
         policy.elite = point.elite;
         policy.rng = point.rng;
@@ -298,7 +299,10 @@ mod tests {
         Point {
             generation,
             policy: policy.clone(),
-            life: 1.0,
+            result: TestResult {
+                life: 1.0,
+                score: 2.0,
+            },
             elite: vec![policy],
             rng,
         }
@@ -316,7 +320,7 @@ mod tests {
                     my_policy: false,
                 };
                 models.load(s);
-                models.life(s);
+                models.result(s);
             }
         }
     }
@@ -368,6 +372,6 @@ mod tests {
         };
         let models = Models::new();
         models.load(s);
-        assert_eq!(models.life(s), None);
+        assert!(models.result(s).is_none());
     }
 }

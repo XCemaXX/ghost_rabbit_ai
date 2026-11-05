@@ -1,4 +1,5 @@
 use base64::{Engine, engine::general_purpose::STANDARD};
+use bot::train::TestResult;
 use bot::vision_job::VISION_ROUNDS;
 use bot::{Network, Rng};
 
@@ -7,7 +8,7 @@ use super::models::{MyPoint, MyPolicy, PolicyKey};
 // The version goes up when the format or the nets change: old data is then ignored.
 fn policy_key((my_vision, round): PolicyKey) -> String {
     let vision = if my_vision { "my" } else { "pretrained" };
-    format!("bot_policy_v1_{vision}_r{round}")
+    format!("bot_policy_v2_{vision}_r{round}")
 }
 
 fn vision_key(round: usize) -> String {
@@ -83,7 +84,8 @@ fn encode(policy: &MyPolicy) -> String {
     bytes.extend((policy.points.len() as u32).to_le_bytes());
     for point in &policy.points {
         bytes.extend((point.generation as u32).to_le_bytes());
-        bytes.extend(point.life.to_le_bytes());
+        bytes.extend(point.result.life.to_le_bytes());
+        bytes.extend(point.result.score.to_le_bytes());
         bytes.extend(bot::to_bytes(&point.policy));
     }
     bytes.extend((policy.elite.len() as u32).to_le_bytes());
@@ -103,7 +105,10 @@ fn decode(text: &str) -> Option<MyPolicy> {
     for _ in 0..r.i32()? {
         points.push(MyPoint {
             generation: r.i32()? as usize,
-            life: f32::from_le_bytes(r.take(4)?.try_into().ok()?),
+            result: TestResult {
+                life: r.f32()?,
+                score: r.f32()?,
+            },
             policy: r.net()?,
         });
     }
@@ -135,6 +140,10 @@ impl<'a> Reader<'a> {
         Some(i32::from_le_bytes(self.take(4)?.try_into().ok()?))
     }
 
+    fn f32(&mut self) -> Option<f32> {
+        Some(f32::from_le_bytes(self.take(4)?.try_into().ok()?))
+    }
+
     fn net(&mut self) -> Option<Network> {
         let bytes = self.take(bot::policy_weights() * 4)?;
         Some(bot::from_bytes(&bot::policy_topology(), bytes))
@@ -158,7 +167,10 @@ mod tests {
         MyPolicy {
             points: vec![MyPoint {
                 generation: 5,
-                life: 123.5,
+                result: TestResult {
+                    life: 123.5,
+                    score: 4567.0,
+                },
                 policy: net(1),
             }],
             elite: vec![net(2), net(3)],
@@ -173,7 +185,8 @@ mod tests {
         assert_eq!(back.inherited, Some((2, 40)));
         assert_eq!(back.rng.0, 77);
         assert_eq!(back.points[0].generation, 5);
-        assert_eq!(back.points[0].life, 123.5);
+        assert_eq!(back.points[0].result.life, 123.5);
+        assert_eq!(back.points[0].result.score, 4567.0);
         assert_eq!(back.elite.len(), 2);
         assert_eq!(
             back.elite[1].weights().collect::<Vec<_>>(),
