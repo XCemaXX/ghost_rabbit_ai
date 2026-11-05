@@ -97,7 +97,7 @@ pub async fn run(
                 Action::NewGame => new_game = true,
                 Action::TrainVision => job = Some(Job::Vision(Box::new(models.start_vision_job()))),
                 Action::TrainPolicy(key) => {
-                    job = Some(Job::Policy(models.start_policy_job(key), key));
+                    job = Some(Job::Policy(Box::new(models.start_policy_job(key)), key));
                 }
                 Action::ResetVision => {
                     models.reset_vision();
@@ -128,7 +128,7 @@ pub async fn run(
 
 enum Job {
     Vision(Box<VisionJob>),
-    Policy(PolicyJob, PolicyKey),
+    Policy(Box<PolicyJob>, PolicyKey),
 }
 
 impl Job {

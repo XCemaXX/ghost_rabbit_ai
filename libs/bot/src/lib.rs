@@ -1,6 +1,6 @@
 // A game bot of two nets that sees only the screen:
 // `vision` predicts, for Left / None / Right, the height gain and the risk to die by monster or by fall;
-// `policy` reads these numbers and its previous move and picks the move.
+// `policy` scores each move by its numbers and the previous move; the best score wins.
 mod climb;
 mod features;
 pub mod policy_job;
@@ -10,6 +10,7 @@ pub mod vision_job;
 
 use climb::climb_move;
 pub use features::{INPUTS, features, wrap_dx};
+use policy_job::POINTS;
 pub use rng::Rng;
 
 use game_logic::{GameState, MoveDirection};
@@ -18,9 +19,8 @@ use neural_network::{Activation, Buffers, LayerTopology, train::sigmoid};
 use rand_trait::GenRandFloat;
 
 pub const VISION_OUTPUTS: usize = 9;
-// A policy file holds the best policy of every GENERATION_STEP-th generation, from 0 to MAX_GENERATION.
-pub const GENERATION_STEP: usize = 5;
-pub const MAX_GENERATION: usize = 100;
+// Gain, monster risk, fall risk of the move; "it is the previous move"; "it is None".
+const POLICY_INPUTS: usize = 5;
 // The bot decides every N frames and repeats the move in between.
 pub const DECISION_EVERY: usize = 2;
 
@@ -47,12 +47,13 @@ pub fn vision_topology() -> Vec<LayerTopology> {
     ]
 }
 
+// One small net with the same weights for all moves: GA finds a rule for a move once, not three times.
 pub fn policy_topology() -> Vec<LayerTopology> {
-    let relu = |neurons| LayerTopology {
+    let linear = |neurons| LayerTopology {
         neurons,
-        activation: Activation::Relu,
+        activation: Activation::Linear,
     };
-    vec![relu(VISION_OUTPUTS + 3), relu(8), relu(3)]
+    vec![linear(POLICY_INPUTS), linear(1)]
 }
 
 pub struct Bot<'a> {
@@ -60,7 +61,6 @@ pub struct Bot<'a> {
     policy: &'a Network,
     step: usize,
     last: MoveDirection,
-    inputs: Vec<f32>,
     vision_buf: Buffers,
     policy_buf: Buffers,
 }
@@ -72,7 +72,6 @@ impl<'a> Bot<'a> {
             policy,
             step: 0,
             last: MoveDirection::None,
-            inputs: Vec::new(),
             vision_buf: Buffers::default(),
             policy_buf: Buffers::default(),
         }
@@ -83,18 +82,27 @@ impl<'a> Bot<'a> {
         if !(self.step - 1).is_multiple_of(DECISION_EVERY) {
             return self.last;
         }
-        features(g, &mut self.inputs);
-        // The previous move as an input: without it the policy cannot keep a move.
-        let mut seen = [0.0; VISION_OUTPUTS + 3];
-        seen[..VISION_OUTPUTS].copy_from_slice(&vision_view(
+        let seen = vision_view(
             self.vision
-                .propagate_into(&self.inputs, &mut self.vision_buf),
-        ));
-        seen[VISION_OUTPUTS + MOVES.iter().position(|&m| m == self.last).unwrap()] = 1.0;
-        let out = self.policy.propagate_into(&seen, &mut self.policy_buf);
-        self.last = MOVES[(0..3)
-            .max_by(|&a, &b| out[a].partial_cmp(&out[b]).unwrap())
-            .unwrap()];
+                .propagate_into(&features(g), &mut self.vision_buf),
+        );
+        let mut best = (f32::NEG_INFINITY, self.last);
+        for (i, &m) in MOVES.iter().enumerate() {
+            let is = |x: bool| if x { 1.0 } else { 0.0 };
+            // The previous move as an input: without it the policy cannot keep a move.
+            let inputs = [
+                seen[i],
+                seen[3 + i],
+                seen[6 + i],
+                is(m == self.last),
+                is(m == MoveDirection::None),
+            ];
+            let score = self.policy.propagate_into(&inputs, &mut self.policy_buf)[0];
+            if score >= best.0 {
+                best = (score, m);
+            }
+        }
+        self.last = best.1;
         self.last
     }
 }
@@ -122,10 +130,11 @@ pub fn from_bytes(topology: &[LayerTopology], bytes: &[u8]) -> Network {
     Network::from_weights(topology, weights)
 }
 
+/// A policy file holds the best policy of each of `POINTS`.
 pub fn policy_at_generation(checkpoints: &[u8], generation: usize) -> Network {
-    assert!(generation.is_multiple_of(GENERATION_STEP) && generation <= MAX_GENERATION);
+    let point = POINTS.iter().position(|&p| p == generation).unwrap();
     let size = 4 * policy_weights();
-    let start = generation / GENERATION_STEP * size;
+    let start = point * size;
     from_bytes(&policy_topology(), &checkpoints[start..start + size])
 }
 
@@ -162,7 +171,7 @@ mod tests {
     fn policy_at_generation_reads_its_slot() {
         let n = policy_weights();
         let mut bytes = Vec::new();
-        for g in (0..=MAX_GENERATION).step_by(GENERATION_STEP) {
+        for g in POINTS {
             let weights: Vec<f32> = (0..n).map(|i| (g * 1000 + i) as f32).collect();
             bytes.extend(to_bytes(&Network::from_weights(
                 &policy_topology(),
@@ -171,6 +180,15 @@ mod tests {
         }
         let first = policy_at_generation(&bytes, 10).weights().next().unwrap();
         assert_eq!(first, 10_000.0);
+    }
+
+    #[test]
+    fn the_policy_picks_the_move_with_the_best_score() {
+        let vision = Network::new(&mut Rng(1), &vision_topology());
+        // Only "it is None" counts.
+        let policy = Network::from_weights(&policy_topology(), vec![0.0, 0.0, 0.0, 0.0, 0.0, 1.0]);
+        let g = GameState::new(Rng(2), game_logic::Difficulty::Unreal);
+        assert!(Bot::new(&vision, &policy).act(&g) == MoveDirection::None);
     }
 
     #[test]

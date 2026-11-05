@@ -8,14 +8,14 @@ use super::models::{MyPoint, MyPolicy, PolicyKey};
 // The version goes up when the format or the nets change: old data is then ignored.
 fn policy_key((my_vision, round): PolicyKey) -> String {
     let vision = if my_vision { "my" } else { "pretrained" };
-    format!("bot_policy_v2_{vision}_r{round}")
+    format!("bot_policy_v5_{vision}_r{round}")
 }
 
 fn vision_key(round: usize) -> String {
-    format!("bot_vision_v1_r{round}")
+    format!("bot_vision_v3_r{round}")
 }
 
-const VISION_RNG_KEY: &str = "bot_vision_v1_rng";
+const VISION_RNG_KEY: &str = "bot_vision_v3_rng";
 
 pub fn load_policy(key: PolicyKey) -> Option<MyPolicy> {
     let storage = quad_storage::STORAGE.lock().unwrap();
@@ -75,11 +75,6 @@ fn set_checked(key: &str, value: &str) -> bool {
 
 fn encode(policy: &MyPolicy) -> String {
     let mut bytes = Vec::new();
-    let (round, generation) = policy
-        .inherited
-        .map_or((-1, -1), |(r, g)| (r as i32, g as i32));
-    bytes.extend(round.to_le_bytes());
-    bytes.extend(generation.to_le_bytes());
     bytes.extend(policy.rng.0.to_le_bytes());
     bytes.extend((policy.points.len() as u32).to_le_bytes());
     for point in &policy.points {
@@ -98,8 +93,6 @@ fn encode(policy: &MyPolicy) -> String {
 fn decode(text: &str) -> Option<MyPolicy> {
     let bytes = from_base64(text)?;
     let mut r = Reader(&bytes);
-    let round = r.i32()?;
-    let generation = r.i32()?;
     let rng = Rng(u64::from_le_bytes(r.take(8)?.try_into().ok()?));
     let mut points = Vec::new();
     for _ in 0..r.i32()? {
@@ -116,12 +109,7 @@ fn decode(text: &str) -> Option<MyPolicy> {
     for _ in 0..r.i32()? {
         elite.push(r.net()?);
     }
-    r.0.is_empty().then_some(MyPolicy {
-        points,
-        elite,
-        rng,
-        inherited: (round >= 0).then_some((round as usize, generation as usize)),
-    })
+    r.0.is_empty().then_some(MyPolicy { points, elite, rng })
 }
 
 struct Reader<'a>(&'a [u8]);
@@ -175,14 +163,12 @@ mod tests {
             }],
             elite: vec![net(2), net(3)],
             rng: Rng(77),
-            inherited: Some((2, 40)),
         }
     }
 
     #[test]
     fn policy_round_trip() {
         let back = decode(&encode(&policy())).unwrap();
-        assert_eq!(back.inherited, Some((2, 40)));
         assert_eq!(back.rng.0, 77);
         assert_eq!(back.points[0].generation, 5);
         assert_eq!(back.points[0].result.life, 123.5);

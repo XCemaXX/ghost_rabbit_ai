@@ -312,13 +312,6 @@ impl Panel {
         ui.text(row(0.0, RESULT_H), &text, BIG, VALUE, Align::Left);
         let detail = "Half of 200 test games did better";
         ui.text(row(1.0, DETAIL_H), detail, TINY, TEXT, Align::Left);
-        let inherited = models
-            .inherited(selection.policy_key())
-            .filter(|_| selection.my_policy);
-        if let Some((round, generation)) = inherited.filter(|_| !models.save_failed) {
-            let text = format!("Control gen 0 = elite of round {round}, gen {generation}");
-            ui.text(row(2.0, DETAIL_H), &text, TINY, TEXT, Align::Left);
-        }
     }
 
     // Goes after the game: the game paints everything outside its field as bars.

@@ -1,12 +1,15 @@
 // Trains the bot and writes its weights to resources/bot.
 // Run by hand (`cargo run --release -p bot_train`): it takes minutes, so CI does not run it.
-use bot::policy_job::{self, GAMES, POPULATION, PolicyGa, TEST_GAMES};
+use bot::policy_job::{self, GAMES, POINTS, POPULATION, PolicyGa, TEST_GAMES};
 use bot::train::{Sample, TestResult, play_and_label};
-use bot::vision_job::{self, VISION_EPOCHS, VISION_GAMES, VISION_ROUNDS};
-use bot::{GENERATION_STEP, MAX_GENERATION, Rng, to_bytes, vision_topology};
+use bot::vision_job::{self, VISION_GAMES, VISION_ROUNDS};
+use bot::{Rng, to_bytes, vision_topology};
 use neural_network::Network;
 use rayon::prelude::*;
 use std::path::Path;
+
+// A fixed split: the sum order, so the weights, do not depend on the number of threads.
+const PARTS: usize = 16;
 
 fn main() {
     let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../resources/bot");
@@ -35,7 +38,8 @@ fn main() {
     std::fs::write(dir.join("scores.csv"), scores).unwrap();
 }
 
-// DAgger: each round the current net plays, the game copy labels the frames, the net trains on all frames.
+// DAgger: each round the current net plays, the game copy labels the frames,
+// the net trains on the frames of this and the previous round.
 fn train_vision() -> Vec<Network> {
     let mut rng = Rng(4);
     let mut vision = Network::new(&mut rng, &vision_topology());
@@ -50,24 +54,31 @@ fn train_vision() -> Vec<Network> {
             .par_iter()
             .map(|&s| play_and_label(player, s))
             .collect();
+        let old_frames = data.len();
         data.extend(games.into_iter().flatten());
-        fit(&mut vision, &data, &mut rng);
+        fit(
+            &mut vision,
+            &data,
+            &mut rng,
+            vision_job::round_epochs(round),
+        );
         println!("vision round {round}: {} frames", data.len());
+        data.drain(..old_frames);
         rounds.push(vision.clone());
     }
     rounds
 }
 
-fn fit(vision: &mut Network, data: &[Sample], rng: &mut Rng) {
+fn fit(vision: &mut Network, data: &[Sample], rng: &mut Rng, epochs: usize) {
     let mut adam = vision_job::new_adam(vision);
     let mut order: Vec<usize> = (0..data.len()).collect();
-    for epoch in 0..VISION_EPOCHS {
+    for epoch in 0..epochs {
         for i in (1..order.len()).rev() {
             order.swap(i, rng.below(i + 1));
         }
-        adam.set_learning_rate(vision_job::epoch_learning_rate(epoch));
+        adam.set_learning_rate(vision_job::epoch_learning_rate(epoch, epochs));
         for batch in order.chunks(vision_job::BATCH) {
-            let parts: Vec<&[usize]> = batch.chunks(vision_job::part_size(batch.len())).collect();
+            let parts: Vec<&[usize]> = batch.chunks(batch.len().div_ceil(PARTS)).collect();
             let grads: Vec<Vec<f32>> = parts
                 .par_iter()
                 .map(|part| vision_job::part_grad(vision, data, part))
@@ -77,11 +88,11 @@ fn fit(vision: &mut Network, data: &[Sample], rng: &mut Rng) {
     }
 }
 
-// Returns (generation, held-out medians, best policy) every GENERATION_STEP generations.
+// Returns (generation, held-out medians, best policy) at each of `POINTS`.
 fn train_policy(vision: &Network, round: usize) -> Vec<(usize, TestResult, Network)> {
     let mut ga = PolicyGa::new(Rng(21));
     let mut checkpoints = Vec::new();
-    for generation in 0..=MAX_GENERATION {
+    for generation in 0..=*POINTS.last().unwrap() {
         let fitness: Vec<f32> = (0..POPULATION)
             .into_par_iter()
             .map(|i| {
@@ -91,7 +102,7 @@ fn train_policy(vision: &Network, round: usize) -> Vec<(usize, TestResult, Netwo
                     / GAMES as f32
             })
             .collect();
-        if generation.is_multiple_of(GENERATION_STEP) {
+        if POINTS.contains(&generation) {
             let policy = &ga.population[policy_job::best(&fitness)];
             let results: Vec<TestResult> = (0..TEST_GAMES)
                 .into_par_iter()

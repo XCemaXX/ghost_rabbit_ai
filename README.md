@@ -29,7 +29,7 @@ The bot sees only the screen. It has two nets: `vision` learns to see danger, `c
 
 On the panel on the right you can:
 - choose pretrained nets and see how the bot plays at each stage of training;
-- train your own nets in the browser, step by step. The browser keeps them. All 8 rounds of `vision` take about 14 minutes.
+- train your own nets in the browser, step by step. The browser keeps them. All 8 rounds of `vision` take about 100 seconds on an Intel Core i5-13400F.
 
 How the bot is built and trained: `docs/ai_research.md`.
 Retrain the weights in `resources/bot/`: `cargo run --release -p bot_train`.
