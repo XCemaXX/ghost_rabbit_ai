@@ -16,12 +16,10 @@ use crate::options::Options;
 use crate::recrord_table::RecordTables;
 use crate::resources::Resources;
 pub use models::Models;
-use models::Selection;
 use panel::{Action, Panel, Training};
 use storage::PolicyKey;
-use widgets::{Align, Ui, VALUE};
+use widgets::Ui;
 
-const TEXT_SIZE: f32 = SCREEN_WEIGHT / 16.0;
 const TRAIN_SEC_PER_FRAME: f64 = 0.012;
 // After a long frame the game does not catch up beyond this.
 const MAX_CATCH_UP_SEC: f64 = 1.0;
@@ -36,6 +34,8 @@ pub async fn run(
     let options = Options {
         nickname: "AiBot".to_owned(),
         difficulty: Difficulty::Unreal,
+        // The bot dies and hits monsters too often, and even more so at high speed.
+        sounds_on: false,
         ..options.clone()
     };
     let record_table = record_tables.get_table(&options.difficulty);
@@ -47,10 +47,10 @@ pub async fn run(
     let mut panel = Panel::new();
     let mut job: Option<Job> = None;
     loop {
-        let selection = panel.selection(models);
-        let (vision, policy) = models.nets(selection);
+        let (vision, policy) = models.nets(panel.selection(models));
         let mut player = bot::Bot::new(&vision, &policy);
-        let mut game_loop = GameScreen::new(resources, &options, &record_table.scores);
+        let mut game_loop =
+            GameScreen::new(resources, &options, &record_table.scores).without_new_record();
         let mut last_update = get_time();
         let mut game_time = 0.0;
         loop {
@@ -99,7 +99,6 @@ pub async fn run(
                 screen: &screen,
                 resources,
             };
-            draw_models(&ui, selection);
             let training = job.as_ref().map(Job::training);
             let action = panel.draw(&ui, models, training);
             // Any action needs a new game: the net may have changed, and on the game over screen
@@ -169,19 +168,4 @@ fn train_in_frame(job: &mut Job, models: &mut Models) {
             }
         }
     }
-}
-
-// In the game field, between the exit and pause buttons.
-fn draw_models(ui: &Ui, s: Selection) {
-    let r = Rect::new(
-        SCREEN_WEIGHT * 0.14,
-        SCREEN_HEIGHT * 0.93,
-        SCREEN_WEIGHT * 0.72,
-        SCREEN_HEIGHT * 0.06,
-    );
-    let mark = |mine| if mine { "*" } else { "" };
-    let vision = format!("Vision: r{}{}", s.round, mark(s.my_vision));
-    let control = format!("Control: g{}{}", s.generation, mark(s.my_policy));
-    ui.text(r, &vision, TEXT_SIZE, VALUE, Align::Left);
-    ui.text(r, &control, TEXT_SIZE, VALUE, Align::Right);
 }
