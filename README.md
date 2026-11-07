@@ -13,7 +13,7 @@ The build is in release mode by default. Pass `--dev` for a debug build.
 - Build: `./gui/build.sh`
 - Run server: `cd gui && python3 -m http.server 7002`
 - Open site: http://localhost:7002
-- After a macroquad update, copy `js/mq_js_bundle.js` from the macroquad repository (same tag) to `gui/pkg/`.
+- After a macroquad update, run `./gui/update_js_bundle.sh`: it takes the JS bundle of the same version from the cargo registry and patches it.
 - After a sapp-jsutils update, copy `js/sapp_jsutils.js` from the crate (same version as in `Cargo.lock`) to `gui/pkg/`.
   The macroquad bundle does not export `js_object` globally, and `quad_storage.js` needs it.
 

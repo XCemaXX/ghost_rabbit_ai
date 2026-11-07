@@ -39,6 +39,7 @@ pub struct GameScreen<'a> {
     state_duration: f64,
     nick_name: &'a String,
     best_scores: &'a [usize],
+    shows_new_record: bool,
     show_1000: f64,
     buttons: Buttons<'a>,
     is_sounds_on: bool,
@@ -55,12 +56,19 @@ impl<'a> GameScreen<'a> {
             state: State::Running,
             state_duration: 0.0,
             best_scores: scores,
+            shows_new_record: true,
             show_1000: -1.0,
             buttons: Buttons::new(resources),
             letterbox: game_letterbox(),
         };
         gs.play_sound(&Sounds::Start);
         gs
+    }
+
+    /// The record marks stay, but a death ends with game over only.
+    pub fn without_new_record(mut self) -> Self {
+        self.shows_new_record = false;
+        self
     }
 
     /// Call first in each frame: the window can change size at any time.
@@ -123,16 +131,15 @@ impl<'a> GameScreen<'a> {
                     self.change_state(State::ShowGameOver);
                 }
             }
-            State::ShowGameOver => {
+            State::ShowGameOver if self.state_duration > GAME_OVER_DURATION_SEC => {
                 let minimal_score = *self.best_scores.iter().next().unwrap();
-                if self.state_duration > GAME_OVER_DURATION_SEC {
-                    if self.game_engine.difficulty == Difficulty::Practice
-                        || self.get_score() < minimal_score
-                    {
-                        self.change_state(State::Finished);
-                    } else {
-                        self.change_state(State::ShowNewRecord);
-                    }
+                if !self.shows_new_record
+                    || self.game_engine.difficulty == Difficulty::Practice
+                    || self.get_score() < minimal_score
+                {
+                    self.change_state(State::Finished);
+                } else {
+                    self.change_state(State::ShowNewRecord);
                 }
             }
             State::ShowNewRecord if self.state_duration > WIN_DURATION_SEC => {

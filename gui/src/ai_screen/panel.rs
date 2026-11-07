@@ -5,13 +5,9 @@ use bot::policy_job::TEST_GAMES;
 
 use super::models::{Models, Selection};
 use super::storage::PolicyKey;
-use super::widgets::{Align, LINE, TEXT, Ui, VALUE};
-use crate::resources::Backgrounds;
+use super::widgets::{ACTION, Align, DANGER, LINE, MAIN, NEUTRAL, RESET, SUBTLE, SURE, TEXT, Ui};
+use crate::resources::{Backgrounds, Labels};
 
-const VISION_COLOR: Color = Color::new(0.25, 0.75, 0.95, 1.0);
-const CONTROL_COLOR: Color = Color::new(0.95, 0.5, 0.2, 1.0);
-const TRAIN_COLOR: Color = Color::new(0.55, 0.95, 0.3, 1.0);
-const RESET_COLOR: Color = Color::new(1.0, 0.45, 0.45, 1.0);
 // The splash is too bright for text at full brightness.
 const BACKGROUND_TINT: Color = Color::new(0.6, 0.6, 0.6, 1.0);
 
@@ -26,13 +22,14 @@ const RESET_CONFIRM_SEC: f64 = 3.0;
 
 const MARGIN: f32 = SCREEN_WEIGHT * 0.05;
 const GAP: f32 = SCREEN_HEIGHT * 0.012;
-const PANEL_TITLE_H: f32 = SCREEN_HEIGHT * 0.07;
-const TITLE_H: f32 = SCREEN_HEIGHT * 0.06;
-const CONTROL_H: f32 = SCREEN_HEIGHT * 0.07;
+const PANEL_TITLE_H: f32 = SCREEN_HEIGHT * 0.1;
+const PANEL_LABEL_H: f32 = SCREEN_HEIGHT * 0.09;
+const SPEED_H: f32 = SCREEN_HEIGHT * 0.05;
+const TITLE_H: f32 = SCREEN_HEIGHT * 0.07;
+const CONTROL_H: f32 = SCREEN_HEIGHT * 0.0625;
 const RESULT_H: f32 = SCREEN_HEIGHT * 0.05;
 const DETAIL_H: f32 = SCREEN_HEIGHT * 0.04;
 const CARD_GAP: f32 = SCREEN_HEIGHT * 0.02;
-const PROGRESS_H: f32 = SCREEN_HEIGHT * 0.018;
 const BIG: f32 = SCREEN_WEIGHT / 12.0;
 const SMALL: f32 = SCREEN_WEIGHT / 17.0;
 const TINY: f32 = SCREEN_WEIGHT / 21.0;
@@ -71,10 +68,9 @@ struct View {
 }
 
 struct Card {
-    title: &'static str,
+    title: Labels,
     purpose: &'static str,
     unit: &'static str,
-    color: Color,
     my_model: bool,
     index: usize,
     reset_asked_at: f64,
@@ -82,12 +78,11 @@ struct Card {
 
 impl Card {
     // A large index means the last point: each use clamps it to the list of that moment.
-    fn new(title: &'static str, purpose: &'static str, unit: &'static str, color: Color) -> Self {
+    fn new(title: Labels, purpose: &'static str, unit: &'static str) -> Self {
         Self {
             title,
             purpose,
             unit,
-            color,
             my_model: false,
             index: usize::MAX,
             reset_asked_at: f64::NEG_INFINITY,
@@ -111,8 +106,8 @@ impl Card {
         };
 
         let title = row(TITLE_H);
-        ui.text(title, self.title, BIG, TEXT, Align::Left);
-        ui.text(title, self.purpose, TINY, self.color, Align::Right);
+        ui.label(&self.title, title.x, title.y, title.h);
+        ui.text(title, self.purpose, TINY, SUBTLE, Align::Right);
 
         let choices = ["PRETRAINED", "MY MODEL"];
         let enabled = [!view.busy && view.pretrained_enabled, !view.busy];
@@ -135,14 +130,12 @@ impl Card {
             action = Action::NewGame;
         }
 
-        ui.progress(row(PROGRESS_H), view.progress.unwrap_or(0.0), self.color);
-
         let buttons = row(CONTROL_H);
         let half = (buttons.w - GAP) / 2.0;
         let left = Rect::new(buttons.x, buttons.y, half, buttons.h);
         let right = Rect::new(buttons.right() - half, buttons.y, half, buttons.h);
-        if view.progress.is_some() {
-            if ui.button(left, "STOP", SMALL, RESET_COLOR, true) {
+        if let Some(progress) = view.progress {
+            if ui.progress_button(left, "STOP", SMALL, progress) {
                 action = Action::Stop;
             }
         } else {
@@ -150,19 +143,17 @@ impl Card {
                 .next
                 .map_or("TRAIN".to_owned(), |next| format!("TRAIN TO {next}"));
             let enabled = view.next.is_some() && view.can_train && !view.busy;
-            if ui.button(left, &train, SMALL, TRAIN_COLOR, enabled) {
+            if ui.button(left, &train, SMALL, &MAIN, enabled) {
                 action = view.train;
             }
         }
         let asked = get_time() - self.reset_asked_at < RESET_CONFIRM_SEC;
-        let reset = if asked { "SURE?" } else { "RESET" };
-        if ui.button(
-            right,
-            reset,
-            SMALL,
-            RESET_COLOR,
-            view.can_reset && !view.busy,
-        ) {
+        let (reset, style) = if asked {
+            ("SURE?", &SURE)
+        } else {
+            ("RESET", &RESET)
+        };
+        if ui.button(right, reset, SMALL, style, view.can_reset && !view.busy) {
             if asked {
                 self.reset_asked_at = f64::NEG_INFINITY;
                 action = view.reset;
@@ -183,8 +174,8 @@ pub struct Panel {
 impl Panel {
     pub fn new() -> Self {
         Self {
-            vision: Card::new("VISION", "Learns to see danger", "ROUND", VISION_COLOR),
-            control: Card::new("CONTROL", "Learns to choose moves", "GEN", CONTROL_COLOR),
+            vision: Card::new(Labels::AiVision, "Learns to see danger", "ROUND"),
+            control: Card::new(Labels::AiControl, "Learns to choose moves", "GEN"),
             speed_index: 1,
         }
     }
@@ -257,19 +248,33 @@ impl Panel {
         }
     }
 
+    // Why no training can start yet.
+    fn train_hint(&self, models: &Models) -> Option<&'static str> {
+        if !self.my_policy() {
+            Some("To train, choose MY MODEL")
+        } else if self.vision.my_model && models.my_vision_rounds() == 0 {
+            Some("Train VISION first, then CONTROL")
+        } else {
+            None
+        }
+    }
+
     // The result belongs to the pair of nets, so it goes below both cards.
     fn draw_result(&self, ui: &Ui, models: &Models, r: Rect, job_text: Option<&str>) {
         ui.fill(Rect::new(r.x, r.y, r.w, GAP / 4.0), LINE);
         let row = |i: f32, h: f32| Rect::new(r.x, r.y + GAP + i * (DETAIL_H + GAP), r.w, h);
-        let headline = |text: &str| ui.text(row(0.0, RESULT_H), text, BIG, VALUE, Align::Left);
+        let headline = |text: &str| ui.text(row(0.0, RESULT_H), text, BIG, ACTION, Align::Left);
         // A point finished during a job says little: the job goes on to its target.
         if let Some(text) = job_text {
             headline(text);
             return;
         }
+        if let Some(hint) = self.train_hint(models) {
+            ui.text(row(2.0, DETAIL_H), hint, TINY, TEXT, Align::Left);
+        }
         if models.save_failed() {
             let text = "Not saved: browser storage is full";
-            ui.text(row(2.0, DETAIL_H), text, TINY, RESET_COLOR, Align::Left);
+            ui.text(row(3.0, DETAIL_H), text, TINY, DANGER, Align::Left);
         }
         let Some(result) = models.result(self.selection(models)) else {
             headline("Not trained yet");
@@ -278,7 +283,7 @@ impl Panel {
         let (life, score) = (result.life, result.score);
         headline(&format!("Lives ~{life:.0} s, ~{score:.0} points"));
         let detail = format!("Half of {TEST_GAMES} test games did better");
-        ui.text(row(1.0, DETAIL_H), &detail, TINY, TEXT, Align::Left);
+        ui.text(row(1.0, DETAIL_H), &detail, TINY, SUBTLE, Align::Left);
     }
 
     // Goes after the game: the game paints everything outside its field as bars.
@@ -286,21 +291,16 @@ impl Panel {
         let r = Rect::new(SCREEN_WEIGHT, 0.0, SCREEN_WEIGHT, SCREEN_HEIGHT);
         draw_background(ui, r);
         let inner = Rect::new(r.x + MARGIN, r.y, r.w - 2.0 * MARGIN, r.h);
-        ui.text(
-            Rect::new(inner.x, inner.y, inner.w, PANEL_TITLE_H),
-            "AI TRAINING",
-            BIG,
-            TEXT,
-            Align::Left,
-        );
+        let half = inner.w / 2.0;
+        ui.label(&Labels::AiTraining, inner.x, inner.y, PANEL_LABEL_H);
         let speed_rect = Rect::new(
-            inner.x + inner.w / 2.0,
-            inner.y + GAP,
-            inner.w / 2.0,
-            PANEL_TITLE_H - 2.0 * GAP,
+            inner.x + half + GAP,
+            inner.y + (PANEL_TITLE_H - SPEED_H) / 2.0,
+            half - GAP,
+            SPEED_H,
         );
         let speed = format!("SPEED x{}", self.speed());
-        if ui.button(speed_rect, &speed, SMALL, VALUE, true) {
+        if ui.button(speed_rect, &speed, SMALL, &NEUTRAL, true) {
             self.speed_index = (self.speed_index + 1) % SPEEDS.len();
         }
 
