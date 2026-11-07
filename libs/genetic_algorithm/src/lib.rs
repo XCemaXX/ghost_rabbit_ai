@@ -3,15 +3,18 @@ mod crossover;
 mod mutation;
 mod selection;
 
-use crossover::CrossoverMethod;
-use mutation::MutationMethod;
+pub use crossover::CrossoverMethod;
+pub use mutation::MutationMethod;
 use rand_trait::GenRandFloat;
-use selection::SelectionMethod;
+pub use selection::SelectionMethod;
 
 pub use chromosome::Chromosome;
-pub use crossover::BlxACrossover;
-pub use mutation::GaussianMutation;
-pub use selection::RouletteWheelSelection;
+pub use crossover::{BlxACrossover, NoCrossover};
+pub use mutation::{GaussianMutation, UniformMutation};
+pub use selection::{RouletteWheelSelection, TournamentSelection};
+
+// Share of the best individuals copied unchanged to the next population.
+const ELITE_FRACTION: f32 = 0.3;
 
 pub trait Individual {
     fn fitness(&self) -> f32;
@@ -42,7 +45,7 @@ impl<S: SelectionMethod, C: CrossoverMethod, M: MutationMethod> GeneticAlgorithm
         assert!(!population.is_empty());
         let mut next_population = Vec::new();
 
-        let parents_count = (population.len() as f32 * 0.3) as usize;
+        let parents_count = (population.len() as f32 * ELITE_FRACTION) as usize;
         next_population.append(&mut self.get_top_parents(population, parents_count));
 
         self.crossover_method.setup(rng);

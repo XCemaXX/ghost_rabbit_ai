@@ -39,6 +39,7 @@ pub struct GameScreen<'a> {
     state_duration: f64,
     nick_name: &'a String,
     best_scores: &'a [usize],
+    shows_new_record: bool,
     show_1000: f64,
     buttons: Buttons<'a>,
     is_sounds_on: bool,
@@ -55,6 +56,7 @@ impl<'a> GameScreen<'a> {
             state: State::Running,
             state_duration: 0.0,
             best_scores: scores,
+            shows_new_record: true,
             show_1000: -1.0,
             buttons: Buttons::new(resources),
             letterbox: game_letterbox(),
@@ -63,9 +65,20 @@ impl<'a> GameScreen<'a> {
         gs
     }
 
+    /// The record marks stay, but a death ends with game over only.
+    pub fn without_new_record(mut self) -> Self {
+        self.shows_new_record = false;
+        self
+    }
+
     /// Call first in each frame: the window can change size at any time.
     pub fn begin_frame(&mut self) {
         self.letterbox.update();
+    }
+
+    /// `begin_frame` for a game that takes only a part of the window.
+    pub fn begin_frame_in(&mut self, area: Rect) {
+        self.letterbox.update_in(area);
     }
 
     pub fn update_game_state_by_input(&mut self) {
@@ -78,13 +91,22 @@ impl<'a> GameScreen<'a> {
 
     /// Advances the game by one frame of `frame_dt` seconds.
     pub fn advance(&mut self, frame_dt: f64, move_direction: MoveDirection) {
-        if frame_dt > AUTO_PAUSE_FRAME_SEC && self.state == State::Running {
-            self.change_state(State::Paused);
-        }
+        self.pause_after_long_frame(frame_dt);
         let (steps, dt) = split_frame(frame_dt);
         for _ in 0..steps {
-            self.move_player(dt, move_direction);
-            self.next_step(dt);
+            self.step(dt, move_direction);
+        }
+    }
+
+    /// One step of `dt` seconds, whatever its length.
+    pub fn step(&mut self, dt: f64, move_direction: MoveDirection) {
+        self.move_player(dt, move_direction);
+        self.next_step(dt);
+    }
+
+    pub fn pause_after_long_frame(&mut self, frame_dt: f64) {
+        if frame_dt > AUTO_PAUSE_FRAME_SEC && self.state == State::Running {
+            self.change_state(State::Paused);
         }
     }
 
@@ -109,16 +131,15 @@ impl<'a> GameScreen<'a> {
                     self.change_state(State::ShowGameOver);
                 }
             }
-            State::ShowGameOver => {
+            State::ShowGameOver if self.state_duration > GAME_OVER_DURATION_SEC => {
                 let minimal_score = *self.best_scores.iter().next().unwrap();
-                if self.state_duration > GAME_OVER_DURATION_SEC {
-                    if self.game_engine.difficulty == Difficulty::Practice
-                        || self.get_score() < minimal_score
-                    {
-                        self.change_state(State::Finished);
-                    } else {
-                        self.change_state(State::ShowNewRecord);
-                    }
+                if !self.shows_new_record
+                    || self.game_engine.difficulty == Difficulty::Practice
+                    || self.get_score() < minimal_score
+                {
+                    self.change_state(State::Finished);
+                } else {
+                    self.change_state(State::ShowNewRecord);
                 }
             }
             State::ShowNewRecord if self.state_duration > WIN_DURATION_SEC => {

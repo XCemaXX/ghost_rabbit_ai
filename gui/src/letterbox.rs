@@ -24,10 +24,19 @@ impl Letterbox {
 
     /// Call once per frame: the window can change size at any time.
     pub fn update(&mut self) {
-        let (screen_w, screen_h) = (screen_width(), screen_height());
-        self.scale = (screen_w / self.world.w).min(screen_h / self.world.h);
+        self.update_in(Rect::new(0.0, 0.0, screen_width(), screen_height()));
+    }
+
+    /// Fits the world into a part of the window. The bars still take the rest of the window.
+    pub fn update_in(&mut self, area: Rect) {
+        self.scale = (area.w / self.world.w).min(area.h / self.world.h);
         let (w, h) = (self.world.w * self.scale, self.world.h * self.scale);
-        self.field = Rect::new((screen_w - w) / 2.0, (screen_h - h) / 2.0, w, h);
+        self.field = Rect::new(
+            area.x + (area.w - w) / 2.0,
+            area.y + (area.h - h) / 2.0,
+            w,
+            h,
+        );
     }
 
     /// The world rectangle on screen, in pixels.
@@ -133,6 +142,13 @@ mod tests {
         assert_eq!(lb.to_screen(vec2(8.0, -4.5)), vec2(800.0, 625.0));
         let lb = letterbox(false);
         assert_eq!(lb.to_screen(vec2(-8.0, -4.5)), vec2(0.0, 175.0));
+    }
+
+    #[test]
+    fn update_in_centers_in_area() {
+        let mut lb = letterbox(true);
+        lb.update_in(Rect::new(100.0, 0.0, 160.0, 180.0));
+        assert_eq!(lb.field(), Rect::new(100.0, 45.0, 160.0, 90.0));
     }
 
     #[test]

@@ -23,7 +23,12 @@ params_register_js_plugin = function (importObject) {
         return js_object(localStorage.getItem(get_js_object(key)));
     }
     importObject.env.quad_storage_set = function (key, value) {
-        localStorage.setItem(get_js_object(key), get_js_object(value));
+        // Over the quota the browser throws; an uncaught error would stop the game.
+        try {
+            localStorage.setItem(get_js_object(key), get_js_object(value));
+        } catch (e) {
+            console.warn("quad_storage: " + e);
+        }
     }
     importObject.env.quad_storage_remove = function (key) {
         localStorage.removeItem(get_js_object(key));

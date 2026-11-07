@@ -25,6 +25,11 @@ pub enum Labels {
     Normal,
     Practice,
     Unreal,
+    AiTraining,
+    AiVision,
+    AiControl,
+    AiFrame,
+    AiArrow,
 }
 
 #[derive(PartialEq, Hash, Eq)]
@@ -244,6 +249,41 @@ impl Resources {
             Labels::Practice,
             Texture2D::from_file_with_format(
                 include_bytes!("../../resources/textures/label_practice.png"),
+                None,
+            ),
+        );
+        self.labels.insert(
+            Labels::AiTraining,
+            Texture2D::from_file_with_format(
+                include_bytes!("../../resources/textures/label_ai_training.png"),
+                None,
+            ),
+        );
+        self.labels.insert(
+            Labels::AiVision,
+            Texture2D::from_file_with_format(
+                include_bytes!("../../resources/textures/label_ai_vision.png"),
+                None,
+            ),
+        );
+        self.labels.insert(
+            Labels::AiControl,
+            Texture2D::from_file_with_format(
+                include_bytes!("../../resources/textures/label_ai_control.png"),
+                None,
+            ),
+        );
+        self.labels.insert(
+            Labels::AiFrame,
+            Texture2D::from_file_with_format(
+                include_bytes!("../../resources/textures/label_ai_frame.png"),
+                None,
+            ),
+        );
+        self.labels.insert(
+            Labels::AiArrow,
+            Texture2D::from_file_with_format(
+                include_bytes!("../../resources/textures/label_ai_arrow.png"),
                 None,
             ),
         );
