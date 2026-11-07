@@ -1,0 +1,10 @@
+[package]
+name = "bot_train"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[dependencies]
+bot = { path = "../../libs/bot" }
+rayon = "1.12.0"
+

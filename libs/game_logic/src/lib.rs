@@ -20,6 +20,8 @@ const CENTER: f32 = 0.0;
 
 pub const SCREEN_HEIGHT: f32 = TOP_Y - BOT_Y;
 pub const SCREEN_WEIGHT: f32 = RIGHT_X - LEFT_X;
+// Points per unit of height.
+pub const SCORE_SCALE: f32 = 50.0;
 
 const MAX_FLOORS: usize = 12;
 
@@ -114,16 +116,35 @@ impl<T: GenRandFloat> GameState<T> {
         }
     }
 
+    pub fn fork<U: GenRandFloat>(&self, rng: U) -> GameState<U> {
+        GameState {
+            floors: self.floors.clone(),
+            player: self.player.clone(),
+            monster: self.monster.clone(),
+            rng,
+            difficulty: self.difficulty,
+            monster_recreation_timer: self.monster_recreation_timer,
+            score: self.score,
+        }
+    }
+
+    // Fork for planning: no future monster spawns are known.
+    pub fn fork_plan<U: GenRandFloat>(&self, rng: U) -> GameState<U> {
+        let mut g = self.fork(rng);
+        g.monster_recreation_timer = f32::MAX;
+        g
+    }
+
     pub fn score_f(&self) -> f32 {
         self.score
     }
 
     pub fn get_score(&self) -> usize {
-        (self.score * 50.0) as usize
+        (self.score * SCORE_SCALE) as usize
     }
 
     pub fn get_score_coord(&self, score: usize) -> (bool, f32) {
-        let score = score as f32 / 50.0;
+        let score = score as f32 / SCORE_SCALE;
         let pos = score - self.score;
         (pos < TOP_Y && pos > BOT_Y, pos)
     }

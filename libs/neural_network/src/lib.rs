@@ -1,12 +1,23 @@
+mod activation;
+mod batch;
 mod layer;
 mod neuron;
+pub mod train;
 
+pub use self::activation::Activation;
 use self::layer::Layer;
 use rand_trait::GenRandFloat;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Network {
     layers: Vec<Layer>,
+}
+
+// Scratch space for `propagate_into`, so a hot loop does not allocate.
+#[derive(Debug, Default)]
+pub struct Buffers {
+    current: Vec<f32>,
+    next: Vec<f32>,
 }
 
 impl Network {
@@ -16,10 +27,27 @@ impl Network {
             .fold(inputs, |inputs, layer| layer.propagate(inputs))
     }
 
+    pub fn propagate_into<'a>(&self, inputs: &[f32], buf: &'a mut Buffers) -> &'a [f32] {
+        buf.current.clear();
+        buf.current.extend_from_slice(inputs);
+        for layer in &self.layers {
+            layer.propagate_into(&buf.current, &mut buf.next);
+            std::mem::swap(&mut buf.current, &mut buf.next);
+        }
+        &buf.current
+    }
+
     pub fn new<T: GenRandFloat>(rng: &mut T, layers: &[LayerTopology]) -> Self {
         let layers = layers
             .windows(2)
-            .map(|layers| Layer::new(rng, layers[0].neurons, layers[1].neurons))
+            .map(|layers| {
+                Layer::new(
+                    rng,
+                    layers[0].neurons,
+                    layers[1].neurons,
+                    layers[1].activation,
+                )
+            })
             .collect();
 
         Self { layers }
@@ -33,6 +61,21 @@ impl Network {
             .cloned()
     }
 
+    pub fn weights_mut(&mut self) -> impl Iterator<Item = &mut f32> + '_ {
+        self.layers
+            .iter_mut()
+            .flat_map(|layer| layer.neurons.iter_mut())
+            .flat_map(|neuron| std::iter::once(&mut neuron.bias).chain(&mut neuron.weights))
+    }
+
+    pub fn weights_count(&self) -> usize {
+        self.layers
+            .iter()
+            .flat_map(|layer| layer.neurons.iter())
+            .map(|neuron| neuron.weights.len() + 1)
+            .sum()
+    }
+
     pub fn from_weights(
         topology: &[LayerTopology],
         weights: impl IntoIterator<Item = f32>,
@@ -42,7 +85,12 @@ impl Network {
         let layers = topology
             .windows(2)
             .map(|topology| {
-                Layer::from_weights(topology[0].neurons, topology[1].neurons, &mut weights)
+                Layer::from_weights(
+                    topology[0].neurons,
+                    topology[1].neurons,
+                    topology[1].activation,
+                    &mut weights,
+                )
             })
             .collect();
         if weights.next().is_some() {
@@ -52,9 +100,11 @@ impl Network {
     }
 }
 
+// The activation of the first (input) layer is not used.
 #[derive(Debug)]
 pub struct LayerTopology {
     pub neurons: usize,
+    pub activation: Activation,
 }
 
 #[cfg(test)]
@@ -82,13 +132,14 @@ mod tests {
         }
     }
 
-    const LAYERS_TOPOLOGY: [LayerTopology; 3] = [
+    const fn relu(neurons: usize) -> LayerTopology {
         LayerTopology {
-            neurons: 4 + 5 + 24,
-        },
-        LayerTopology { neurons: 14 },
-        LayerTopology { neurons: 2 },
-    ];
+            neurons,
+            activation: Activation::Relu,
+        }
+    }
+
+    const LAYERS_TOPOLOGY: [LayerTopology; 3] = [relu(4 + 5 + 24), relu(14), relu(2)];
 
     #[test]
     fn weights() {
@@ -100,6 +151,7 @@ mod tests {
             brain.weights().collect::<Vec<_>>(),
             brain2.weights().collect::<Vec<_>>()
         );
+        assert_eq!(brain.weights_count(), brain.weights().count());
     }
 
     #[test]
@@ -116,12 +168,14 @@ mod tests {
                         weights: vec![-0.2, -0.1, 0.0],
                     },
                 ],
+                activation: Activation::Relu,
             },
             Layer {
                 neurons: vec![Neuron {
                     bias: 0.0,
                     weights: vec![-0.5, 0.5],
                 }],
+                activation: Activation::Relu,
             },
         );
         let network = Network {
@@ -131,8 +185,10 @@ mod tests {
         let actual = network.propagate(vec![0.5, 0.6, 0.7]);
         let expected = layers.1.propagate(layers.0.propagate(vec![0.5, 0.6, 0.7]));
 
-        for (f, s) in std::iter::zip(actual, expected) {
+        for (f, s) in std::iter::zip(&actual, expected) {
             assert!((f - s).abs() < f32::EPSILON)
         }
+        let mut buf = Buffers::default();
+        assert_eq!(network.propagate_into(&[0.5, 0.6, 0.7], &mut buf), actual);
     }
 }

@@ -7,21 +7,36 @@ pub struct Neuron {
 }
 
 impl Neuron {
+    // Weighted sum, before the layer's activation.
+    // Partial sums: a single running sum cannot be reordered, so the compiler cannot use SIMD.
     pub fn propagate(&self, inputs: &[f32]) -> f32 {
         assert_eq!(inputs.len(), self.weights.len());
-        let output = inputs
+        let mut sums = [0.0; 8];
+        let inputs8 = inputs.chunks_exact(8);
+        let weights8 = self.weights.chunks_exact(8);
+        let tail = inputs8
+            .remainder()
             .iter()
-            .zip(&self.weights)
+            .zip(weights8.remainder())
             .map(|(input, weight)| input * weight)
             .sum::<f32>();
+        for (inputs, weights) in inputs8.zip(weights8) {
+            for k in 0..8 {
+                sums[k] += inputs[k] * weights[k];
+            }
+        }
 
-        (self.bias + output).max(0.0)
+        self.bias + sums.iter().sum::<f32>() + tail
     }
 
+    // Variance 1 / input_size: the weighted sum stays near 1, so deep nets do not saturate.
     pub fn new<T: GenRandFloat>(rng: &mut T, input_size: usize) -> Self {
-        let bias = rng.gen_range(-1.0..=1.0);
+        let limit = (3.0 / input_size as f32).sqrt();
+        let bias = rng.gen_range(-limit..=limit);
 
-        let weights = (0..input_size).map(|_| rng.gen_range(-1.0..=1.0)).collect();
+        let weights = (0..input_size)
+            .map(|_| rng.gen_range(-limit..=limit))
+            .collect();
 
         Self { bias, weights }
     }

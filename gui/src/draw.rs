@@ -6,7 +6,7 @@ use crate::letterbox::Letterbox;
 pub const BARS: Color = GRAY;
 
 // Rasterized once; on usual screens text is scaled down, so it stays sharp.
-const FONT_SIZE: u16 = 64;
+pub const FONT_SIZE: u16 = 64;
 const TEXT_SIZE: f32 = SCREEN_WEIGHT / 16.0;
 
 /// All screens show the same world, y up.

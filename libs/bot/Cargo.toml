@@ -1,0 +1,10 @@
+[package]
+name = "bot"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+game_logic = { path = "../game_logic" }
+genetic_algorithm = { path = "../genetic_algorithm" }
+neural_network = { path = "../neural_network" }
+rand_trait = { path = "../rand_trait" }

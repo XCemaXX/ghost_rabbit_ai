@@ -1,6 +1,6 @@
+mod ai_screen;
 mod draw;
 mod game_screen;
-mod learn_ai;
 mod letterbox;
 mod menus;
 mod options;
@@ -17,8 +17,6 @@ use options::Options;
 use recrord_table::RecordTables;
 use resources::Resources;
 
-use learn_ai::{generate_inputs_for_ai, get_next_move_by_ai, learn_ai};
-
 fn window_conf() -> Conf {
     Conf {
         window_title: "GhostRabbitAi".to_owned(),
@@ -29,6 +27,7 @@ fn window_conf() -> Conf {
 #[macroquad::main(window_conf)]
 async fn main() {
     let mut record_tables = RecordTables::new();
+    let mut ai_models = ai_screen::Models::from_storage();
     let resources = Resources::load_resources();
     let mut options = Options::new();
     let mut background_music: Option<Playback> = None;
@@ -36,10 +35,12 @@ async fn main() {
     loop {
         current_screen = match current_screen {
             ScreenType::Game => {
-                if options.music_on && background_music.is_none() {
-                    background_music = Some(resources.play_background());
-                }
+                start_music(&resources, &options, &mut background_music);
                 run_game_loop(&resources, &mut record_tables, &options).await
+            }
+            ScreenType::GameAi => {
+                start_music(&resources, &options, &mut background_music);
+                ai_screen::run(&resources, &record_tables, &options, &mut ai_models).await
             }
             ScreenType::MainMenu => run_main_menu_loop(&resources).await,
             ScreenType::RecordsMenu => run_records_menu_loop(&resources, &mut record_tables).await,
@@ -54,8 +55,13 @@ async fn main() {
                 };
                 r
             }
-            ScreenType::GameAi => run_ai_game_loop(&resources, &mut record_tables, &options).await,
         };
+    }
+}
+
+fn start_music(resources: &Resources, options: &Options, music: &mut Option<Playback>) {
+    if options.music_on && music.is_none() {
+        *music = Some(resources.play_background());
     }
 }
 
@@ -142,35 +148,4 @@ async fn run_game_loop(
     }
     record_tables.insert(&difficulty, options.nickname.clone(), score);
     ScreenType::RecordsMenu
-}
-
-async fn run_ai_game_loop(
-    resources: &Resources,
-    record_tables: &mut RecordTables,
-    options: &Options,
-) -> ScreenType {
-    let difficulty = Difficulty::Unreal;
-    let ai_player = learn_ai(difficulty);
-    let mut last_update = get_time();
-    let record_table = record_tables.get_table(&difficulty);
-    let mut game_loop = game_screen::GameScreen::new(resources, options, &record_table.scores);
-    loop {
-        let lu = get_time();
-        let dt = lu - last_update;
-        last_update = lu;
-
-        game_loop.begin_frame();
-        game_loop.update_game_state_by_input();
-
-        let inputs_ai = generate_inputs_for_ai(&game_loop.game_engine);
-        let move_direction = get_next_move_by_ai(&ai_player, inputs_ai);
-
-        game_loop.advance(dt, move_direction);
-        if game_loop.is_game_over() {
-            break;
-        }
-        game_loop.draw();
-        next_frame().await
-    }
-    ScreenType::MainMenu
 }

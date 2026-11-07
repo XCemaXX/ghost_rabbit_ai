@@ -1,4 +1,5 @@
 [target.wasm32-unknown-unknown]
 # quad-snd, sapp-jsutils and quad-storage-sys import JS functions via plain `extern "C"`
 # without `wasm_import_module`; newer rustc no longer allows undefined symbols by default.
-rustflags = ["-C", "link-arg=--allow-undefined"]
+# simd128 makes the network sums several times faster; it needs Safari 16.4+ on iOS.
+rustflags = ["-C", "link-arg=--allow-undefined", "-C", "target-feature=+simd128"]
