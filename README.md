@@ -1,7 +1,7 @@
 # Ghost Rabbit
 [Ghost Rabbit](https://xcemaxx.github.io/ghost_rabbit_ai) is a 2D game like doodle jump. Used WASM and macroquad.
 
-There is legacy C# XNA version: https://github.com/XCemaXX/ghost_rabbit_ai/tree/master/legacy
+There is legacy C# XNA version: https://github.com/XCemaXX/ghost_rabbit_legacy
 
 Check runnable version online: [Ghost Rabbit](https://xcemaxx.github.io/ghost_rabbit_ai)
 The game needs WebAssembly SIMD: Chrome 91+, Firefox 89+, Safari 16.4+ (iOS 16.4+).

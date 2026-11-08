@@ -1,7 +1,6 @@
 # AI bot: research summary
 
 This file explains why the bot in `libs/bot` is built the way it is.
-The full research log (in Russian) and the experiment harness `ai_lab` are in the local branch `ai-lab` (`ai_lab/REPORT.md`).
 
 ## Goal
 
